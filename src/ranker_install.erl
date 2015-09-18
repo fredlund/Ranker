@@ -33,7 +33,7 @@
 %% Inspired by eqc_install for the QuickCheck tool
 %% (thanks to John Hughes for his kind assistance).
 
--module(java_erlang_install).
+-module(ranker_install).
 -export([install/0,install/3]).
 
 install() ->
@@ -41,14 +41,14 @@ install() ->
     Ebin = filename:dirname(Erlang),
     Erts = filename:dirname(Ebin),
     Lib = filename:dirname(Erts),
-    ThisModule = code:where_is_file("java_erlang_install.beam"),
+    ThisModule = code:where_is_file("ranker_install.beam"),
     ThisModuleLocation = filename:dirname(filename:dirname(ThisModule)),
     Version = find_version(),
     install(Version,ThisModuleLocation,Lib).
 
 install(Version,BuildDir,Lib) ->
     io:format("Installation program for JavaErlang.~n~n",[]),
-    ToDir = Lib++"/java_erlang-"++Version,
+    ToDir = Lib++"/ranker-"++Version,
     if
 	BuildDir == ToDir ->
 	    io:format("*** Error: source and destination are the same~n"),
@@ -85,15 +85,15 @@ conflicts(ToDir) ->
     end.
 
 install(From,ToDir) ->
-    copy_java_erlang(From,ToDir),
+    copy_ranker(From,ToDir),
     io:format("JavaErlang is installed successfully.\n",[]),
     code:add_paths([ToDir++"/ebin"]).
 
 find_version() ->
-    ok = application:ensure_started(java_erlang),
+    ok = application:ensure_started(ranker),
     java:version().
 
-copy_java_erlang(From,ToDir) ->
+copy_ranker(From,ToDir) ->
     case copy(From,ToDir) of
 	ok ->
 	    ok;

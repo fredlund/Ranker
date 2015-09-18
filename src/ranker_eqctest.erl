@@ -1,4 +1,4 @@
--module(eqctest).
+-module(ranker_eqctest).
 
 -compile(export_all).
 
@@ -91,10 +91,10 @@ find_late_entregas(Dir,Description) ->
 	 io:format("Number of entregas is ~p~n",[length(Entregas)]),
 	 LateEntregas =
 	   lists:filter
-	     (fun ({User,Group,Dir,Time}) ->
+	     (fun ({_User,_Group,_Dir,Time}) ->
 		  case cmp_times(Time,CutOffTime) of
 		    lesser -> false;
-		    Other -> true
+		    _ -> true
 		  end
 	      end, Entregas),
 	 io:format("Number of late entregas is ~p~n",[length(LateEntregas)]),
@@ -102,7 +102,7 @@ find_late_entregas(Dir,Description) ->
 	   true ->
 	     io:format("Cutoff time: ~p~n",[CutOffTime]),
 	     lists:foreach
-	       (fun ({User,Group,Dir,Time}) ->
+	       (fun ({User,Group,_Dir,Time}) ->
 		    io:format
 		      ("*** User ~p from Group ~p has late entrega "++
 			 "of lab ~p~n        at time ~p~n",
@@ -117,7 +117,7 @@ find_late_entregas(Dir,Description) ->
 
 runtests(Module,LFile,Target,CP) ->
   lists:foreach
-    (fun ({User,Group,Dir,Time}) ->
+    (fun ({User,Group,Dir,_Time}) ->
 	 io:format
 	   ("~n===============================================================~n"),
 	 io:format
@@ -166,7 +166,7 @@ test(Module,CP,Id) ->
              begin
 	       create_node(CP),
 	       %%io:format("will run~n~p~n",[Cmds]),
-               {H,DS,Res} = eqc_statem:run_commands(Module,Cmds),
+               {_H,_DS,Res} = eqc_statem:run_commands(Module,Cmds),
 	       java:terminate(node_id()),
                case Res of
                  ok -> true;

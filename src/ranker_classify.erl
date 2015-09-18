@@ -3,7 +3,7 @@
 %%% Description : 
 %%% Created : 25 May 2010 by  <>
 
--module(classify).
+-module(ranker_classify).
 -include_lib("eqc/include/eqc.hrl").
 
 -compile(export_all).
@@ -159,7 +159,7 @@ shrink_measure(PreOldMeasure,Result,{false,CovMeasure}) ->
     length(Result#result.failures),
   NumSuccesses =
     length(Result#result.successes),
-  SizeOfNewPairs = 
+  _SizeOfNewPairs = 
     NumFailures*NumSuccesses,
   NewMeasure =
     %%SizeOfNewPairs
@@ -247,7 +247,7 @@ calculate_graph(Students,PreClasses) ->
 			  not lists:member(P,Ps0)]}
 		 || P <- Students],
     Equivalences = lists:usort([ {[ Q || {Q,Tq} <- Successes, Tq==T],T}
-		    || {P,T} <- Successes]),
+		    || {_P,T} <- Successes]),
     io:format("Successes = ~p\n",[Successes]),
     io:format("Equivalences = ~p\n",[Equivalences]),
     Edges = [{P,Q,TsP--TsQ}
@@ -333,7 +333,7 @@ symbolic_edges(Edges) ->
   io:format("Edges is ~p~n",[Edges]),
   Result=
   lists:foldl
-    (fun (Edge={P,Q,Ts},{NewEdges,Counter,Map}) ->
+    (fun (_Edge={P,Q,Ts},{NewEdges,Counter,Map}) ->
 	 {NewTs,NewCounter,NewMap} =
 	   lists:foldl
 	     (fun (T,{NewTs1,NewCounter1,NewMap1}) ->
@@ -392,9 +392,9 @@ find_path_to(State,CurrentPaths,Edges) ->
     false ->
       NextPaths = 
 	lists:foldl
-	  (fun (Path={PState,PPath},NewPaths1) ->
+	  (fun (_Path={PState,PPath},NewPaths1) ->
 	       lists:foldl
-		 (fun (Edge={From,To,Label},NewPaths2) ->
+		 (fun (_Edge={From,To,Label},NewPaths2) ->
 		      if
 			PState==From ->
 			  case lists:keyfind(To, 1, NewPaths2) of

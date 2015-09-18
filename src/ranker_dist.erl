@@ -1,4 +1,4 @@
--module(dist).
+-module(ranker_dist).
 
 -compile(export_all).
 
@@ -53,7 +53,7 @@ select(Value,[{Node,Factor}|Rest],Acc) ->
 start_erlang_nodes(Plan) ->
   start_erlang_nodes(Plan,[]).
 start_erlang_nodes([],_Started) -> [];
-start_erlang_nodes([{local,Factor,LogLevel}|Rest],Started) ->
+start_erlang_nodes([{local,Factor,_LogLevel}|Rest],Started) ->
   io:format("skipping starting local host~n",[]),
   [{node(),Factor}|start_erlang_nodes(Rest,[node()|Started])];
 start_erlang_nodes([{Host,Factor,LogLevel}|Rest],Started) ->

@@ -1,4 +1,4 @@
--module(rank). 
+-module(ranker). 
 
 -compile(export_all).
 -include_lib("eqc/include/eqc.hrl").

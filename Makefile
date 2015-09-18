@@ -6,4 +6,4 @@ install:
 	make doinstall
 
 doinstall:
-	erl -pa _build/default/lib/Ranker/ebin/ -noshell -run ranker install -run erlang halt
+	erl -pa _build/default/lib/ranker/ebin/ -noshell -run ranker_install install -run erlang halt
