@@ -1,0 +1,14 @@
+{application, ranker,
+ [{description, "Ranking implementations using Quviq QuickCheck"}
+ ,{vsn, "1.0"}
+ ,{registered, []}
+ ,{mod, {'ranker_app', []}}
+ ,{applications, [kernel, stdlib]}
+ ,{env, []}
+ ,{modules, ['ranker',
+             'ranker_app',
+             'ranker_sup',
+             'ranker_classify',
+             'ranker_dist'
+            ]}
+ ]}.
