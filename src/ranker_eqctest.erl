@@ -1,4 +1,4 @@
--module(ranker_eqctest).
+-module(eqctest).
 
 -compile(export_all).
 
@@ -91,10 +91,10 @@ find_late_entregas(Dir,Description) ->
 	 io:format("Number of entregas is ~p~n",[length(Entregas)]),
 	 LateEntregas =
 	   lists:filter
-	     (fun ({_User,_Group,_Dir,Time}) ->
+	     (fun ({User,Group,Dir,Time}) ->
 		  case cmp_times(Time,CutOffTime) of
 		    lesser -> false;
-		    _ -> true
+		    Other -> true
 		  end
 	      end, Entregas),
 	 io:format("Number of late entregas is ~p~n",[length(LateEntregas)]),
@@ -102,7 +102,7 @@ find_late_entregas(Dir,Description) ->
 	   true ->
 	     io:format("Cutoff time: ~p~n",[CutOffTime]),
 	     lists:foreach
-	       (fun ({User,Group,_Dir,Time}) ->
+	       (fun ({User,Group,Dir,Time}) ->
 		    io:format
 		      ("*** User ~p from Group ~p has late entrega "++
 			 "of lab ~p~n        at time ~p~n",
@@ -115,9 +115,111 @@ find_late_entregas(Dir,Description) ->
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+lines(LFile,Target) ->
+  lists:map
+    (fun (Entrega={User,Group,Dir,Time}) ->
+	 ObjectCommand =
+	   "~/Downloads/javancss-32.53/bin/javancss "++
+	   "-object "++
+	   Dir++"/"++LFile,
+	 ObjectResult = os:cmd(ObjectCommand),
+	 NCCSValue =
+	   case re:run(ObjectResult,".*Program NCSS:[[:space:]]*(.*)",
+		       [{capture,all_but_first,list}]) of
+	     {match,[Value]} ->
+	       list_to_float(Value);
+	     nomatch ->
+	       io:format
+		 ("Running ~n~s~nfailed to match, result:~n~s~n",
+		  [ObjectCommand,ObjectResult]),
+	       void
+	   end,
+	 FunctionCommand =
+	   "~/Downloads/javancss-32.53/bin/javancss "++
+	   "-function "++
+	   Dir++"/"++LFile,
+	 FunctionResult = os:cmd(FunctionCommand),
+	 Pattern = ".*Average Function CCN:[[:space:]]*([[:digit:]]*\\.[[:digit:]]*)",
+	 CCNValue =
+	   case re:run(FunctionResult,
+		       Pattern,
+		       [{capture,all_but_first,list},dotall]) of
+	     {match,[FuncValue]} ->
+	       list_to_float(FuncValue);
+	     nomatch ->
+	       io:format
+		 ("Running ~n~s~nfailed to match pattern ~s, result:~n~s~n",
+		  [FunctionCommand,Pattern,FunctionResult]),
+	       void
+	   end,
+
+	 FuncPattern =
+	   ".*JVDC\sFunction[[:space:]]*(.*)Average\sFunction\sNCSS",
+	 IndividualCCNS = 
+	   case re:run(FunctionResult,
+		       FuncPattern,
+		       [{capture,all_but_first,list},dotall]) of
+	     {match,[FuncValues]} ->
+	       %%io:format
+	       %%("FuncValues:~n~s~n",
+	       %%[FuncValues]),
+	       get_func_ccns(FuncValues,[],0);
+	     nomatch ->
+	       io:format
+		 ("Running ~n~s~nfailed to match pattern ~s, result:~n~s~n",
+		  [FunctionCommand,FuncPattern,FunctionResult]),
+	       {void,void}
+	   end,
+	 {Entrega,NCCSValue,CCNValue,IndividualCCNS}
+     end, find_entregas(LFile,Target)).
+
+get_func_ccns(String,L,Max) ->
+  FuncPattern = "[[:space:]]*[[:graph:]]*[[:space:]]*[[:graph:]]*[[:space:]]*([[:graph:]]*)[[:space:]]*[[:graph:]]*[[:space:]]*[[:graph:]]*(.*)",
+  case re:run(String,FuncPattern,[{capture,all_but_first,list},dotall]) of
+    {match,[Num,Other]} ->
+      if
+	Num=/="" ->
+	  Int = list_to_integer(Num),
+	  %%io:format("Num=~s Other=~s~n",[Num,Other]),
+	  NewMax = if Int>Max -> Int; true -> Max end,
+	  get_func_ccns(Other,[Int|L],NewMax);
+	true ->
+	  {lists:reverse(L),Max}
+      end;
+    nomatch -> {lists:reverse(L),Max}
+  end.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+compile(LFile,Target) ->
+  lists:foreach
+    (fun ({User,Group,Dir,Time}) ->
+	 Command =
+	   "cd "++Dir++"; ~/Downloads/jdk/jdk1.6.0_38/bin/javac "++
+	   "-d classes "++
+	   "-cp /home/fred/gits/src/aed_labs_2014/positionList.jar "++
+	   "*.java",
+	 ClassDir = Dir++"/"++"classes/",
+	 %%io:format("will ensure ~s~n",[ClassDir]),
+	 case filelib:ensure_dir(ClassDir) of
+	   ok ->
+	     ok;
+	   {error,Reason} -> 
+	     io:format("Error: could not create ~s due to ~p~n",[Dir,Reason]),
+	     throw(bad)
+	 end,
+	 Result =
+	   os:cmd(Command),
+	 io:format
+	   ("Compiled for ~p in ~p~nCommand:~n~p~nResult:~n~p~n",
+	    [User,Group,Command,Result])
+     end, find_entregas(LFile,Target)).
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 runtests(Module,LFile,Target,CP) ->
   lists:foreach
-    (fun ({User,Group,Dir,_Time}) ->
+    (fun ({User,Group,Dir,Time}) ->
 	 io:format
 	   ("~n===============================================================~n"),
 	 io:format
@@ -145,8 +247,6 @@ print_cp([Obj|Rest]) ->
 test(Args) ->
   case Args of
     [ModuleString,Id|CP] ->
-      %%io:format("Args are ~p~n",[Args]),
-      %%io:format("CP is ~p~n",[CP]),
       test(list_to_atom(ModuleString),CP,Id);
     _ ->
       io:format("*** Error: strange arguments ~p~n",[Args])
@@ -164,10 +264,10 @@ test(Module,CP,Id) ->
     (?FORALL(Cmds,
              eqc_statem:more_commands(1,eqc_statem:commands(Module)),
              begin
-	       create_node(CP),
+	       Node = create_node(CP,Id),
 	       %%io:format("will run~n~p~n",[Cmds]),
-               {_H,_DS,Res} = eqc_statem:run_commands(Module,Cmds),
-	       java:terminate(node_id()),
+               {H,DS,Res} = eqc_statem:run_commands(Module,Cmds,[{node,Node}]),
+	       java:terminate(Node),
                case Res of
                  ok -> true;
                  _ -> 
@@ -191,7 +291,7 @@ test(Module,CP,Id) ->
 	("~n~n~s PASSED~n",[Id])
   end.
 
-create_node(CP) ->
+create_node(CP,Name) ->
   %%java:set_loglevel(all),
   %%io:format("Classpath is ~p~n",[CP]),
   {ok,Node} =
@@ -202,7 +302,7 @@ create_node(CP) ->
 	{java_exception_as_value,true}]),
   ets:insert(eqc_data,{node,Node}),
   put(node,Node),
-  put(name,"unknown"),
+  put(name,Name),
   Node.
 
 node_id() ->
@@ -213,9 +313,22 @@ name() ->
 
 %% eqctest:test(lab1_corr,["/home/fred/aed_backup_20150215/aed/Laboratorio1/G-3S1M/000999/20140918-200018/"],"000999").
 
-%% eqctest:runtests(lab1_corr, "IntegerSet.java", "/home/fred/entregas1", []).
+%% eqctest:runtests(lab1_corr, "CheckConsecutiveElements.java", "/home/fred/aed_backup_20150215/aed/Laboratorio1/", []).
 
+%% erl -pa ebin -name tst@tabitha.ls.fi.upm.es
+%% rank:do_classify(lab1_corr,"CheckConsecutiveElements.java","/home/fred/aed_backup_20150215/aed/Laboratorio1/","class.bin",[{local,6,info},{"138.100.13.47",6,info}]).
+%%
+%% erl -pa ../ebin -run rank render_classes lab1_corr -run erlang halt
 %% eqctest:runtests(lab2_corr, "ExtendedNodePositionList.java", "/home/fred/entregas2", ["net-datastructures-5-0.jar"]).
+
+%% eqctest:test(lab2_corr,["/home/fred/aed_backup_20150215/aed/Laboratorio2/G-3S1M/000999/20140925-185003/","classes/positionList.jar"],"000999").
+
+%% eqctest:runtests(lab2_corr, "RemovePositionList.java", "/home/fred/aed_backup_20150215/aed/Laboratorio2/", ["classes/positionList.jar"]).
+
+%% erl -pa ebin -name tst@tabitha.ls.fi.upm.es
+%% rank:do_classify(lab2_corr,"RemovePositionList.java","/home/fred/aed_backup_20150215/aed/Laboratorio2/","class.bin",[{local,6,info},{"138.100.13.47",6,info}]).
+
+
 
 %% eqctest:runtests(lab3_corr, "MoreExtendedNodePositionList.java", "/home/fred/entregas3", ["net-datastructures-5-0.jar"]).
 
@@ -223,11 +336,31 @@ name() ->
 
 %% eqctest:runtests(lab6_corr, "CompareAlumnos.java", "/home/fred/entregas6", ["/home/fred/gits/src/aed_labs/classes"]).
 
+%% eqctest:test(lab1_corr, "/tmp/entregas/Lab1/G-3S2M/110142/20120928-125449
+
+%% eqctest:test(lab1_corr, "/tmp/entregas/Lab1/G-3S2M/110142/20120928-125449
+
 %% eqctest:test(lab5_corr, ["net-datastructures-5-0.jar","/home/fred/entregas5/Lab5/G-3S1M/000999/20121025-131858"],"000999").
 
 %% eqctest:test(lab6_corr, ["/home/fred/gits/src/aed_labs/classes","/home/fred/entregas6/Lab6/G-3S2M/000999/20121122-103655"],"000999").
 
 %% eqctest:test(lab1_corr, "tmps").
+
+%% eqctest:compile("CheckConsecutiveElements.java", "/home/fred/aed_backup_20150215/aed/Laboratorio1").
+
+%% eqctest:compile("RemovePositionList.java", "/home/fred/aed_backup_20150215/aed/Laboratorio2").
+
+%% eqctest:compile("SortList.java", "/home/fred/aed_backup_20150215/aed/Laboratorio4").
+
+%% eqctest:compile("MergeLists.java", "/home/fred/aed_backup_20150215/aed/Laboratorio3").
+
+%% eqctest:compile("FairMerge.java", "/home/fred/aed_backup_20150215/aed/Laboratorio5").
+
+%% eqctest:compile("IteratorMerge.java", "/home/fred/aed_backup_20150215/aed/Laboratorio6").
+
+%% eqctest:lines("MergeLists.java", "/home/fred/aed_backup_20150215/aed/Laboratorio3").
+
+%% eqctest:lines("CheckConsecutiveElements.java", "/home/fred/aed_backup_20150215/aed/Laboratorio1").
 
 find_late_entregas() ->
   find_late_entregas
@@ -243,12 +376,20 @@ find_late_entregas() ->
       {9,"Heap.java",{2012,12,25,0,0,0}}
      ]).
 
+normalize_matricula(A) when is_atom(A) ->
+  normalize_matricula(atom_to_list(A));
+normalize_matricula([First|Rest]) 
+  when First>=$1, First=<$9 ->
+  [First|normalize_matricula_rest(Rest)];
+normalize_matricula([First|Rest]) ->
+  normalize_matricula(Rest).
 
-
-  
-
-
-
-  
-
+normalize_matricula_rest([]) ->
+  [];
+normalize_matricula_rest([32|Rest]) ->
+  normalize_matricula_rest(Rest);
+normalize_matricula_rest([First|Rest]) when First>=$a, First=<$z ->
+  [First-($a-$A)|normalize_matricula_rest(Rest)];
+normalize_matricula_rest([First|Rest]) ->
+  [First|normalize_matricula_rest(Rest)].
 

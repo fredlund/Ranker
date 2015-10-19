@@ -3,7 +3,7 @@
 %% @end
 %%%-------------------------------------------------------------------
 
--module('ranker.app').
+-module(ranker_app).
 
 -behaviour(application).
 
