@@ -3,11 +3,9 @@
 -compile(export_all).
 -include_lib("eqc/include/eqc.hrl").
 
--include("implementation.hrl").
-
--record(implementation_rec,{id,pid,implementation,timeouts=0}).
-
 %%-define(debug,true).
+
+-define(EtsTableName,ranker_ets).
 
 -ifdef(debug).
 -define(LOG(X,Y), io:format("{~p,~p}: ~s~n", [?MODULE,?LINE,io_lib:format(X,Y)])).
@@ -17,137 +15,85 @@
 -define(DEBUGVAL(),false).
 -endif.
 
-report_error(Cmds,H,DS,Res,ImplementationRec) ->
-  io:format
-    ("~n~n~p: commands~n~p~n failed in state~n"++
-     "~p~n due to ~p~n",[ImplementationRec#implementation_rec.id,Cmds,DS,Res]),
-  io:format("Failure reason is ~p~n",[Res]),
-  HLen = length(H),
-  FailCommands = lists:sublist(Cmds,HLen),
-  Combined = lists:zip(FailCommands,H),
-  io:format("~nFailing commands of length ~p~n",[HLen]),
+classify(StatemModule,Recipe,Implementations) ->
+  ets:new(?EtsTableName,[public,named_table]),
+  ImplementationIds =
+    lists:map (fun (Imp) -> proplists:get_value(id,Imp) end, Implementations),
+  set_implementations(ImplementationIds),
+  RecipeState =
+    Recipe:initial_state(Implementations),
+  set_recipe_struct(RecipeState),
   lists:foreach
-    (fun ({Cmd,{_,Result}}) ->
-	 io:format("~p => ~p~n",[Cmd,Result])
-     end, Combined),
-  io:format("Failing command: ~p~n",[lists:sublist(Cmds,HLen+1,1)]).
-
-%% erl -pa ../ebin -run rank render_classes lab1b_corr -run erlang halt
-%% erl -pa ../ebin -run rank render_classes lab2b_corr -run erlang halt
-%% erl -pa ../ebin -run rank render_classes lab3_corr -run erlang halt
-%% erl -pa ../ebin -run rank render_classes lab4_corr -run erlang halt
-%% erl -pa ../ebin -run rank render_classes lab3_corr -run erlang halt
-%% erl -pa ../ebin -run rank render_classes lab3_corr -run erlang halt
-%% erl -pa ../ebin -run rank render_classes lab_old_corr -run erlang halt
-%%
-
-classify(Module,ImplementationRecipe) ->
-  Implementations = ImplementationRecipe(),
-  io:format
-    ("Dir: ~p Elapsed seconds: ~p~n",
-     [Dir,Time/1000000]).
-  ets:new(eqc_result,[public,named_table]),
-  ets:insert(eqc_result,{result,0,0,[]}),
-  ets:insert(eqc_result,{current_test_case,0}),
-  FinalClasses =
+      (fun ({Id,Implementation}) ->
+	   ImpState = Recipe:init_implementation(Implementation,RecipeState),
+	   set_imp_struct(Id,ImpState)
+       end, lists:zip(ImplementationIds,Implementations)),
+  _FinalClasses =
     classify:classify
-      (atom_to_list(Module),
+      (atom_to_list(StatemModule),
        100,
-       lists:map 
-	 (fun ({_,Implementation}) -> 
-	      Implementation#implementation_rec.id end, 
-	  ImplementationStructs),
-       eqc_statem:commands(Module),
-       fun(Commands) -> run_for_each(Module,Commands) end),
-  file:write_file
-    (Filename,
-     term_to_binary
-       ({classified,lists:map(fun ({Name,_,_,_}) -> Name end, Implementations),
-	 FinalClasses})).
+       ImplementationIds,
+       eqc_statem:commands(StatemModule),
+       fun(Commands) -> run_for_each(StatemModule,Commands) end).
 
-setup_implementations(Implementations) ->
-  lists:map
-    (fun ({ImplementationName,_Group,ImplementationDir,_Time}) ->
-	 {ImplementationName,
-	  #implementation_rec
-	  {id=ImplementationName,
-	   implementation=
-	     node_reuse:make_implementation
-	       (ImplementationName,ImplementationDir)}}
-     end,
-     Implementations).
-
-implementations(Implementations) ->
-  lists:map(fun ({Implementationname,_}) ->
-		Implementationname 
-	    end, Implementations).
-
-run_for_each(Module,Cmds) ->
-  [{implementations,Implementations}] = ets:lookup(eqc_result,implementations),
+run_for_each(StatemModule,Cmds) ->
   Self = self(),
-  lists:map
-    (fun (Implementation) ->
-	 spawn_link
-	   (fun () ->
-		check(Module,Cmds,Implementation,Self)
-	    end)
-     end, Implementations),
+  RecipeState = recipe_struct(),
+  Recipe = proplists:get_value(recipe,RecipeState),
+  Implementations = implementations(),
+  RunRS =
+    lists:foldl
+      (fun (ImpId,RS) ->
+	   ImpState = imp_struct(ImpId),
+	   {NewRS,NewImpState} = 
+	     Recipe:prepare_implementation(ImpState,RS),
+	   spawn_link
+	     (fun () ->
+		  check(StatemModule,Cmds,ImpId,NewImpState,Self)
+	      end),
+	   NewRS
+       end, RecipeState, Implementations),
   {Fails,Timeouts} = collect_fails(Implementations),
   if
     Fails=/=[] ->
-      io:format("Failing implementations:~n~p~n",[lists:usort(Fails)]);
+      io:format
+	("Failing implementations:~n~p~n",
+	 [lists:usort(Fails)]);
     true ->
       ok
   end,
   if
     Timeouts=/=[] ->
-      io:format("Timeouts: ~p~n",[lists:usort(Timeouts)]);
+      io:format
+	("Timeouts: ~p~n",
+	 [lists:usort(Timeouts)]);
      true ->
       ok
   end,
-  lists:foreach(fun handle_timeout/1, Timeouts),
+  FinalRS = Recipe:post_run(RunRS,Fails,Timeouts),
+  set_recipe_struct(FinalRS),
   Fails++Timeouts.
 
-handle_timeout(Implementation) ->
-  [{_,ImplementationRec}] = ets:lookup(eqc_result,{implementation,Implementation}),
-  NumTimeouts = ImplementationRec#implementation_rec.timeouts+1,
-  io:format
-    ("*** Timeout number ~p for implementation ~p~n",
-     [NumTimeouts,ImplementationRec#implementation_rec.id]),
-  ets:insert
-    (eqc_result,{{implementation,Implementation},ImplementationRec#implementation_rec{timeouts=NumTimeouts}}).
-
-check(Module,Cmds,Implementation,Parent) ->
-  Counter = 
-    case ets:lookup(eqc_result,node_counter) of
-      [{_,Cnt}] -> Cnt;
-      _ -> 0
-    end,
-  true =
-    ets:insert(eqc_result,{node_counter,Counter+1}),
-  Implementation = ImplementationRec#implementation_rec.id,
-  Id = (ImplementationRec#implementation_rec.implementation)#implementation.implementation_id,
-  ets:insert
-    (eqc_result,
-     {{implementation,Implementation},
-      ImplementationRec#implementation_rec{pid=self()}}),
+check(StatemModule,Cmds,ImpId,ImpState,Parent) ->
   {Time,{_H1,_DS1,Res1}} =
     timer:tc
     (fun () -> 
-	 put(node,Node),
-	 put(name,Implementation),
-	 eqc_statem:run_commands(Module,Cmds,[{node,Node},{classes,Classes}])
+	 eqc_statem:run_commands(StatemModule,Cmds,[{id,ImpId},{imp,ImpState}])
      end),
   Seconds = Time/1000000,
   if
     Seconds>5.0 ->
-      io:format("Warning: time=~p for implementation ~p~n",[Seconds,Id]);
+      io:format
+	("Warning: time=~p for implementation ~p~n",
+	 [Seconds,ImpId]);
     true ->
       ok
   end,
   if 
     Res1=/=ok ->
-      io:format("Implementation ~p failed with exit code ~p~n",[Implementation,Res1]);
+      io:format
+	("Implementation ~p failed with exit code ~p~n",
+	 [ImpId,Res1]);
     true -> 
       ok
   end,
@@ -160,7 +106,7 @@ check(Module,Cmds,Implementation,Parent) ->
       {postcondition,java_timeout} -> timeout; 
       _Other -> true
     end,
-  Parent!{implementation,Implementation,Result}.
+  Parent!{implementation,ImpId,Result}.
 
 collect_fails(Implementations) ->
   collect_fails(Implementations,[],[]).
@@ -176,46 +122,26 @@ collect_fails([_|Rest],Fails,Timeouts) ->
       end
     end.
 
-render(Module) ->
-  fun (Commands) ->
-      Result =
-	Module:render_commands
-	(lists:foldl
-	   (fun (Command,Acc) -> Module:render(Command,Acc) end,
-	    Module:render_init(), Commands)),
-      RendResult =
-	case Result of
-	  _ when is_list(Result) -> Result;
-	  Other ->
-	    io:format
-	      ("*** Warning: render of~n~p~ndoes not return a list but~n~p~n",
-	       [Commands,Other]),
-	    throw(badarg)
-	end,
-      io_lib:write(lists:reverse(RendResult))
-  end.
-   
-set_option(Key) ->
-  io:format("Option ~p set~n",[Key]),
-  ets:insert(eqc_result,{Key,true}).
+set_recipe_struct(RS) ->
+  ets:insert(?EtsTableName,{recipe_struct,RS}).
 
-do_render(Module,Filename) ->
-  {ok,Binary} = file:read_file(Filename),
-  {classified,Implementations,Classes} = binary_to_term(Binary),
-  classify:graph(make_results_name(""),render(Module),Implementations,Classes,[]).
+recipe_struct() ->
+  [{_,RS}] = ets:lookup(?EtsTableName,recipe_struct),
+  RS.
 
-render_classes([Exercise]) ->
-  Files = filelib:wildcard(Exercise++"*classes*.bin"),
-  Module = list_to_atom(Exercise),
-  lists:foreach
-    (fun (Filename) ->
-	 N = filename:rootname(Filename),
-	 {ok,Binary} = file:read_file(Filename),
-	 {classified,Implementations,Classes} = binary_to_term(Binary),
-	 classify:graph(N,render(Module),Implementations,Classes,[{symbolic_edges,true}]),
-	 os:cmd(io_lib:format("dot -Tpng < ~p.dot > ~p.png",[N,N]))
-     end, Files).
+set_imp_struct(ImpId,ImpState) ->
+  ets:insert(?EtsTableName,{{imp,ImpId},ImpState}).
 
-make_results_name(Option) ->
-  io_lib:format("results:~s:~s",[Option,os:getpid()]).
+imp_struct(ImpId) ->
+  [{_,ImpState}] = ets:lookup(?EtsTableName,{imp,ImpId}),
+  ImpState.
 
+set_implementations(Implementations) ->
+  ets:insert(?EtsTableName,{implementations,Implementations}).
+
+implementations() ->
+  [{_,Implementations}] = ets:lookup(?EtsTableName,implementations),
+  Implementations.
+
+
+  

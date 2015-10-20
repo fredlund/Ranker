@@ -42,7 +42,7 @@ classes(Name,I,Implementations,N,Classes,Gen,Test) ->
   %% io:format
   %%("~nall loaded size:~p~n~p~n",[length(code:all_loaded()),code:all_loaded()]),
     ets:insert(eqc_result,{fail,void}),
-    case counterexample(prop_complete(N,Classes,Gen,Implementations,Test)) of
+    case counterexample(prop_complete(Classes,Gen,Implementations,Test)) of
 	true -> Classes;
       [TestCase] ->
 	timer:sleep(3000),
@@ -116,16 +116,10 @@ print_classes(Classes) ->
 print_class(Class) ->
   lists:foldr(fun (Implementation,Acc) -> Implementation++", "++Acc end, "", Class#result.failures).
 
-prop_complete(N,Classes,Gen,Implementations,Test) ->
-%%    numtests(
-  %%    N,
-    %%  ?ALWAYS(3,
-	      ?FORALL(TestCase,
-		      Gen,
-		      %%noshrink(Gen),
-		      pcovered(Classes,Test,Implementations,TestCase))
-.
-%%)).
+prop_complete(Classes,Gen,Implementations,Test) ->
+  ?FORALL(TestCase,
+	  Gen,
+	  pcovered(Classes,Test,Implementations,TestCase)).
 
 %% Don't we forget old information???
 %% Another approach would be to systematically 
@@ -180,7 +174,7 @@ shrink_measure_higher(PreOldMeasure,Result,{false,CovMeasure}) ->
     length(Result#result.failures),
   NumSuccesses =
     length(Result#result.successes),
-  SizeOfNewPairs = 
+  _SizeOfNewPairs = 
     NumFailures*NumSuccesses,
   NewMeasure =
     %%SizeOfNewPairs
@@ -199,13 +193,12 @@ shrink_measure_higher(PreOldMeasure,Result,{false,CovMeasure}) ->
       {false,NewMeasure}
   end.
 
-shrink_measure_normal(PreOldMeasure,Result,{false,CovMeasure}) ->
+shrink_measure_normal(_PreOldMeasure,_Result,{false,CovMeasure}) ->
   NewMeasure =
-    %%SizeOfNewPairs
     CovMeasure,
   {true,NewMeasure}.
 
-shrink_measure_never(PreOldMeasure,Result,{false,CovMeasure}) ->
+shrink_measure_never(PreOldMeasure,_Result,{false,CovMeasure}) ->
   NewMeasure =
     %%SizeOfNewPairs
     CovMeasure,
@@ -221,10 +214,9 @@ shrink_measure_lower(PreOldMeasure,Result,{false,CovMeasure}) ->
     length(Result#result.failures),
   NumSuccesses =
     length(Result#result.successes),
-  SizeOfNewPairs = 
+  _SizeOfNewPairs = 
     NumFailures*NumSuccesses,
   NewMeasure =
-    %%SizeOfNewPairs
     CovMeasure,
   OldMeasure =
     if
@@ -309,7 +301,7 @@ calculate_graph(Implementations,PreClasses) ->
 			  not lists:member(P,Ps0)]}
 		 || P <- Implementations],
     Equivalences = lists:usort([ {[ Q || {Q,Tq} <- Successes, Tq==T],T}
-		    || {P,T} <- Successes]),
+		    || {_P,T} <- Successes]),
     io:format("Successes = ~p\n",[Successes]),
     io:format("Equivalences = ~p\n",[Equivalences]),
     Edges = [{P,Q,TsP--TsQ}
@@ -395,7 +387,7 @@ symbolic_edges(Edges) ->
   io:format("Edges is ~p~n",[Edges]),
   Result=
   lists:foldl
-    (fun (Edge={P,Q,Ts},{NewEdges,Counter,Map}) ->
+    (fun (_Edge={P,Q,Ts},{NewEdges,Counter,Map}) ->
 	 {NewTs,NewCounter,NewMap} =
 	   lists:foldl
 	     (fun (T,{NewTs1,NewCounter1,NewMap1}) ->
@@ -438,7 +430,7 @@ calculate_all_paths(States,Edges) ->
       (fun (State) -> 
 	   not(lists:any(fun ({_,Q,_}) -> Q==State end, Edges))
        end,States),
-  NonStarters = 
+  _NonStarters = 
     States--Starters,
   StarterPaths =
     lists:map
@@ -475,9 +467,9 @@ find_path_to(State,CurrentPaths,Edges) ->
     false ->
       NextPaths = 
 	lists:foldl
-	  (fun (Path={PState,PPath},NewPaths1) ->
+	  (fun (_Path={PState,PPath},NewPaths1) ->
 	       lists:foldl
-		 (fun (Edge={From,To,Label},NewPaths2) ->
+		 (fun (_Edge={From,To,Label},NewPaths2) ->
 		      if
 			PState==From ->
 			  case lists:keyfind(To, 1, NewPaths2) of
@@ -503,10 +495,10 @@ all_paths_to(State,StarterPaths,Edges) ->
 all_paths_to(State,AlivePaths,Edges,FPs) ->
   {AllAlivePaths,AllFinishedPaths} =
     lists:foldl
-      (fun (Path={PState,PLabels,PStates},{AlivePaths,FinishedPaths}) ->
+      (fun (_Path={PState,PLabels,PStates},{_AlivePaths,FinishedPaths}) ->
 	   NextPaths =
 	     lists:foldl
-	       (fun (Edge={From,To,Label},AlivePaths2) ->
+	       (fun (_Edge={From,To,Label},AlivePaths2) ->
 		    if
 		      PState == From ->
 			NewPath = {To,[Label|PLabels],[From|PStates]},
@@ -527,7 +519,7 @@ all_paths_to(State,AlivePaths,Edges,FPs) ->
 
 split_paths(State,Paths) ->
   lists:foldl
-    (fun (Path={PState,PLabels,PStates},{APs,FPs}) ->
+    (fun (Path={PState,_PLabels,_PStates},{APs,FPs}) ->
 	 if
 	   PState==State ->
 	     {APs,[Path|FPs]};
