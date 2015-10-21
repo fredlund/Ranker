@@ -1,5 +1,7 @@
 -module(erlang_recipe).
 
+-include("implementation.hrl").
+
 -define(ETS_TABLE,ranker_erlang_ets).
 
 -export([start/2,start_implementation/1,stop_implementation/2,finish/0]).
@@ -9,13 +11,13 @@ start(Implementations,_) ->
   ImplementationIds =
     lists:map
       (fun (Implementation) ->
-	   {Implementation#implementation.implementation_id,Implementation}
+	   {Implementation#implementation.id,Implementation}
        end, Implementations), 
   ets:insert(?ETS_TABLE,{implementations,ImplementationIds}).
   
 start_implementation(Id) ->
   [{_,ImplementationIds}] = ets:lookup(?ETS_TABLE,implementations),
-  {_,Implementation} = lists:keyfind(Id,1,ImplementationIds),
+  {_,_Implementation} = lists:keyfind(Id,1,ImplementationIds),
   ok.
 
 stop_implementation(_,_) ->
