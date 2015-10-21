@@ -30,10 +30,12 @@ public class SortArr<E> {
     public AbstractList<Integer> insertionSort(AbstractList<Integer> l) {
 	AbstractList<Integer> result = null;
 	
-	result = new ArrayList<Integer>();
+	if(l != null) {
+	    result = new ArrayList<Integer>();
 		
-	for (int i=0; i<l.size(); i++)
-	    insert(l.get(i),result);
+	    for (int i=0; i<=l.size(); i++)
+		insert(l.get(i),result);
+	    }
 
 	return result;
     }

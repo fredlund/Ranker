@@ -46,7 +46,11 @@ classes(Name,I,Implementations,N,Classes,Gen,Test) ->
   %%("~nall loaded size:~p~n~p~n",[length(code:all_loaded()),code:all_loaded()]),
     ets:insert(?ETS_TABLE,{fail,void}),
     case counterexample(prop_complete(Classes,Gen,Implementations,Test)) of
-	true -> Classes;
+      true ->
+	file:write_file
+	  (Name++"_classes_"++integer_to_list(I)++".bin",
+	   term_to_binary({classified,Implementations,Classes})),
+	Classes;
       [TestCase] ->
 	timer:sleep(3000),
 	io:format

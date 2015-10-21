@@ -6,12 +6,7 @@ import java.util.ArrayList;
 public class SortArr<E> {
 
     private boolean lt(Integer elem1, Integer elem2) {
-	if (elem1 != null && elem2 != null)
-	    return elem1.intValue() < elem2.intValue();
-	else if (elem1 == null) 
-	    return true;
-	else 
-	    return false;
+	return elem1 < elem2;
     }
 	
     private void insert(Integer n, AbstractList<Integer> l) {
@@ -30,10 +25,12 @@ public class SortArr<E> {
     public AbstractList<Integer> insertionSort(AbstractList<Integer> l) {
 	AbstractList<Integer> result = null;
 	
-	result = new ArrayList<Integer>();
+	if(l != null) {
+	    result = new ArrayList<Integer>();
 		
-	for (int i=0; i<l.size(); i++)
-	    insert(l.get(i),result);
+	    for (int i=0; i<l.size(); i++)
+		insert(l.get(i),result);
+	    }
 
 	return result;
     }
