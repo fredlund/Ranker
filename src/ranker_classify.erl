@@ -10,7 +10,10 @@
 
 -record(result,{testcase,failures,successes}).
 
+-define(ETS_TABLE,ranker_classify_ets).
+
 classify(Name,N,Implementations,Gen,Test) ->
+  ranker_create_ets_table:ensure_open(?ETS_TABLE),
   io:format("Implementations are~n~p~n",[Implementations]),
   classes(Name,1,Implementations,N,[],Gen,Test).
 
@@ -41,7 +44,7 @@ classes(Name,I,Implementations,N,Classes,Gen,Test) ->
 
   %% io:format
   %%("~nall loaded size:~p~n~p~n",[length(code:all_loaded()),code:all_loaded()]),
-    ets:insert(eqc_result,{fail,void}),
+    ets:insert(?ETS_TABLE,{fail,void}),
     case counterexample(prop_complete(Classes,Gen,Implementations,Test)) of
 	true -> Classes;
       [TestCase] ->
@@ -146,13 +149,13 @@ pcovered(Classes,Test,Implementations,TestCase) ->
   Covering =
     if
       not(Covered) ->
-	[{fail,Fail}] = ets:lookup(eqc_result,fail),
+	[{fail,Fail}] = ets:lookup(?ETS_TABLE,fail),
 	case shrink_measure(Fail,Result,CovResult) of
 	  {true,NewMeasure} ->
 	    io:format
 	      ("shrinking succeeded: was ~p is ~p~n",
 	       [Fail,NewMeasure]),
-	    ets:insert(eqc_result,{fail,NewMeasure}),
+	    ets:insert(?ETS_TABLE,{fail,NewMeasure}),
 	    false;
 	  {false,NewMeasure} ->
 	    io:format

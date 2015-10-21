@@ -15,44 +15,29 @@
 -define(DEBUGVAL(),false).
 -endif.
 
-classify(StatemModule,Recipe,Implementations) ->
+classify(StatemModule,RecipeModule,Recipe,ImplementationList) ->
+  {ImplementationIds,Implementations} = lists:unzip(ImplementationList),
   ets:new(?EtsTableName,[public,named_table]),
-  ImplementationIds =
-    lists:map (fun (Imp) -> proplists:get_value(id,Imp) end, Implementations),
-  set_implementations(ImplementationIds),
-  RecipeState =
-    Recipe:initial_state(Implementations),
-  set_recipe_struct(RecipeState),
-  lists:foreach
-      (fun ({Id,Implementation}) ->
-	   ImpState = Recipe:init_implementation(Implementation,RecipeState),
-	   set_imp_struct(Id,ImpState)
-       end, lists:zip(ImplementationIds,Implementations)),
+  ets:insert(?EtsTableName,{implementations,ImplementationIds}),
+  ok = RecipeModule:start(Implementations,Recipe),
   _FinalClasses =
-    classify:classify
+    ranker_classify:classify
       (atom_to_list(StatemModule),
        100,
        ImplementationIds,
        eqc_statem:commands(StatemModule),
-       fun(Commands) -> run_for_each(StatemModule,Commands) end).
+       fun(Commands) -> run_for_each(StatemModule,RecipeModule,Commands) end).
 
-run_for_each(StatemModule,Cmds) ->
+run_for_each(StatemModule,RecipeModule,Cmds) ->
   Self = self(),
-  RecipeState = recipe_struct(),
-  Recipe = proplists:get_value(recipe,RecipeState),
-  Implementations = implementations(),
-  RunRS =
-    lists:foldl
-      (fun (ImpId,RS) ->
-	   ImpState = imp_struct(ImpId),
-	   {NewRS,NewImpState} = 
-	     Recipe:prepare_implementation(ImpState,RS),
-	   spawn_link
-	     (fun () ->
-		  check(StatemModule,Cmds,ImpId,NewImpState,Self)
-	      end),
-	   NewRS
-       end, RecipeState, Implementations),
+  [{_,Implementations}] = ets:lookup(?EtsTableName,implementations),
+  lists:foreach
+    (fun (ImpId) ->
+	 spawn_link
+	   (fun () ->
+		check(StatemModule,RecipeModule,Cmds,ImpId,Self)
+	    end)
+     end, Implementations),
   {Fails,Timeouts} = collect_fails(Implementations),
   if
     Fails=/=[] ->
@@ -70,15 +55,14 @@ run_for_each(StatemModule,Cmds) ->
      true ->
       ok
   end,
-  FinalRS = Recipe:post_run(RunRS,Fails,Timeouts),
-  set_recipe_struct(FinalRS),
   Fails++Timeouts.
 
-check(StatemModule,Cmds,ImpId,ImpState,Parent) ->
+check(StatemModule,RecipeModule,Cmds,ImpId,Parent) ->
+  ImpData = RecipeModule:start_implementation(ImpId),
   {Time,{_H1,_DS1,Res1}} =
     timer:tc
     (fun () -> 
-	 eqc_statem:run_commands(StatemModule,Cmds,[{id,ImpId},{imp,ImpState}])
+	 eqc_statem:run_commands(StatemModule,Cmds,[{id,ImpId},{imp,ImpData}])
      end),
   Seconds = Time/1000000,
   if
@@ -106,6 +90,7 @@ check(StatemModule,Cmds,ImpId,ImpState,Parent) ->
       {postcondition,java_timeout} -> timeout; 
       _Other -> true
     end,
+  RecipeModule:stop_implementation(ImpId,Result),
   Parent!{implementation,ImpId,Result}.
 
 collect_fails(Implementations) ->
@@ -121,27 +106,6 @@ collect_fails([_|Rest],Fails,Timeouts) ->
 	timeout -> collect_fails(Rest,Fails,[Implementation|Timeouts])
       end
     end.
-
-set_recipe_struct(RS) ->
-  ets:insert(?EtsTableName,{recipe_struct,RS}).
-
-recipe_struct() ->
-  [{_,RS}] = ets:lookup(?EtsTableName,recipe_struct),
-  RS.
-
-set_imp_struct(ImpId,ImpState) ->
-  ets:insert(?EtsTableName,{{imp,ImpId},ImpState}).
-
-imp_struct(ImpId) ->
-  [{_,ImpState}] = ets:lookup(?EtsTableName,{imp,ImpId}),
-  ImpState.
-
-set_implementations(Implementations) ->
-  ets:insert(?EtsTableName,{implementations,Implementations}).
-
-implementations() ->
-  [{_,Implementations}] = ets:lookup(?EtsTableName,implementations),
-  Implementations.
 
 
   
