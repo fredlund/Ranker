@@ -1,0 +1,1 @@
+-record(implementation,{implementation_id,node_id,classpool,path,status=idle}).
