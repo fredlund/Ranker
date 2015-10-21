@@ -34,6 +34,8 @@ public class SortArr<E> {
 		
 	for (int i=0; i<l.size(); i++)
 	    insert(l.get(i),result);
+
+	return result;
     }
 }
 	

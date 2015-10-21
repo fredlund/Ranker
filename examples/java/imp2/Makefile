@@ -1,8 +1,8 @@
-all: classes classes/SortArr.class
+all: classes classes/SortArr/SortArr.class
 
 classes:
 	mkdir -p classes
 
-classes/SortArr.class: SortArr.java
+classes/SortArr/SortArr.class: SortArr.java
 	javac -d classes SortArr.java
 

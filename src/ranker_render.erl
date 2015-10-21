@@ -33,8 +33,8 @@ render_classes([Exercise]) ->
 	 N = filename:rootname(Filename),
 	 {ok,Binary} = file:read_file(Filename),
 	 {classified,Implementations,Classes} = binary_to_term(Binary),
-	 ranker_classify:graph(N,render(StatemModule),Implementations,Classes,[{symbolic_edges,true}]),
-	 os:cmd(io_lib:format("dot -Tpng < ~p.dot > ~p.png",[N,N]))
+	 ranker_classify:graph(N,render(StatemModule),Implementations,Classes,[{symbolic_edges,true}])
+	 %%os:cmd(io_lib:format("dot -Tpng < ~p.dot > ~p.png",[N,N]))
      end, Files).
 
 make_results_name(Option) ->

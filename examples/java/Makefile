@@ -1,6 +1,8 @@
 all: ebin ebin/corr.beam ebin/test.beam
 	(cd imp1; make)
 	(cd imp2; make)
+	(cd imp3; make)
+	(cd imp4; make)
 
 ebin:
 	mkdir -p ebin
