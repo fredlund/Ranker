@@ -435,12 +435,14 @@ calculate_all_paths(States,Edges) ->
        end,States),
   _NonStarters = 
     States--Starters,
+  io:format("Starters are~n~p~nNonstarters:~n~p~n",[Starters,_NonStarters]),
   StarterPaths =
     lists:map
       (fun (State) -> {State,[],[]} end, Starters),
+  io:format("Starterpaths=~n~p~n",[StarterPaths]),
   lists:map
     (fun (State) ->
-	 {State,all_paths_to(State,StarterPaths,Edges)}
+	 {State,all_paths_to(State,Starters,StarterPaths,Edges)}
      end, States).
   
 statistics(Name,States,Edges) ->
@@ -492,13 +494,22 @@ find_path_to(State,CurrentPaths,Edges) ->
       end
   end.
 		      
-all_paths_to(State,StarterPaths,Edges) ->
-  all_paths_to(State,StarterPaths,Edges,[]).
+all_paths_to(State,Starters,StarterPaths,Edges) ->
+  case lists:member(State,Starters) of
+    true -> 
+      {_,FPs} = split_paths(State,StarterPaths),
+      FPs;
+    false ->
+      all_paths_to1(State,StarterPaths,Edges,[])
+  end.
 
-all_paths_to(State,AlivePaths,Edges,FPs) ->
+all_paths_to1(State,AlivePaths,Edges,FPs) ->
+  io:format
+    ("all_paths_to: state=~p alivepaths=~n~p~nfps=~n~p~n",
+     [State,AlivePaths,FPs]),
   {AllAlivePaths,AllFinishedPaths} =
     lists:foldl
-      (fun (_Path={PState,PLabels,PStates},{_AlivePaths,FinishedPaths}) ->
+      (fun (_Path={PState,PLabels,PStates},{FAlivePaths,FinishedPaths}) ->
 	   NextPaths =
 	     lists:foldl
 	       (fun (_Edge={From,To,Label},AlivePaths2) ->
@@ -511,11 +522,11 @@ all_paths_to(State,AlivePaths,Edges,FPs) ->
 		    end
 		end, [], Edges),
 	   {NextAlivePaths,NextFinishedPaths} = split_paths(State,NextPaths),
-	   {NextAlivePaths++AlivePaths,NextFinishedPaths++FinishedPaths}
+	   {NextAlivePaths++FAlivePaths,NextFinishedPaths++FinishedPaths}
        end, {[],FPs}, AlivePaths),
   if
     AllAlivePaths=/=[] ->
-      all_paths_to(State,AllAlivePaths,Edges,AllFinishedPaths);
+      all_paths_to1(State,AllAlivePaths,Edges,AllFinishedPaths);
     true ->
       AllFinishedPaths
   end.

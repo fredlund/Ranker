@@ -25,16 +25,18 @@ do_render(StatemModule,Filename) ->
   {classified,Implementations,Classes} = binary_to_term(Binary),
   ranker_classify:graph(make_results_name(""),render(StatemModule),Implementations,Classes,[]).
 
-render_classes([Exercise]) ->
+render_classes(Exercise) ->
   Files = filelib:wildcard(Exercise++"*classes*.bin"),
   StatemModule = list_to_atom(Exercise),
   lists:foreach
     (fun (Filename) ->
 	 N = filename:rootname(Filename),
+	 io:format("reading ~s~n",[Filename]),
 	 {ok,Binary} = file:read_file(Filename),
 	 {classified,Implementations,Classes} = binary_to_term(Binary),
-	 ranker_classify:graph(N,render(StatemModule),Implementations,Classes,[{symbolic_edges,true}])
-	 %%os:cmd(io_lib:format("dot -Tpng < ~p.dot > ~p.png",[N,N]))
+	 ranker_classify:graph(N,render(StatemModule),Implementations,Classes,[{symbolic_edges,true}]),
+	 io:format("before dot...~n"),
+	 os:cmd(io_lib:format("dot -Tpng < ~p.dot > ~p.png",[N,N]))
      end, Files).
 
 make_results_name(Option) ->
