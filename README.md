@@ -26,8 +26,17 @@ $ rebar3 compile
 After compilation Erlang beam files will be left in the
 directory _build/default/lib/ranker/ebin/.
 
-To generate Markdown docs, execute the following command:<br />
+Should you wish to install the Ranker tool in the standard
+Erlang library structure, the following commands can be used:<br />
+```
+$ erl -pa _build/default/lib/ranker/ebin/
 
+> ranker_install:install().
+```
+</p>
+
+<p>
+To generate Markdown docs, execute the following command:<br/>
 ```
 $ env ERL_LIBS=$PWD/_build/default/lib/edown rebar3 edoc
 ```
@@ -71,8 +80,8 @@ To build and test the Erlang example, after having compiled
 the Ranker tool, follow the steps below:
 
 ```
-examples/java$ make
-examples/java$ erl -pa ../../_build/default/lib/ranker/ebin/ -pa ebin
+examples/erlang make
+examples/erlang erl -pa ../../_build/default/lib/ranker/ebin/ -pa ebin
 
 1> test:test().
 ...

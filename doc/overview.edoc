@@ -26,6 +26,17 @@ directory _build/default/lib/ranker/ebin/.
 </p>
 
 <p>
+Should you wish to install the Ranker tool in the standard
+Erlang library structure, the following commands can be used:<br />
+
+```
+$ erl -pa _build/default/lib/ranker/ebin/
+
+> ranker_install:install().
+```
+</p>
+
+<p>
 To generate Markdown docs, execute the following command:<br/>
 ```
 $ env ERL_LIBS=$PWD/_build/default/lib/edown rebar3 edoc
