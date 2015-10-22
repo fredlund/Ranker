@@ -17,6 +17,7 @@
 -define(DEBUGVAL(),false).
 -endif.
 
+-spec(classify(atom(),atom(),any(),[#implementation{}]) -> [any()]).
 classify(RankerModule,RecipeModule,Recipe,Implementations) ->
   ImplementationIds =
     lists:map
@@ -95,5 +96,12 @@ collect_fails([_|Rest],Fails,Timeouts) ->
       end
     end.
 
+version() ->
+  case [ Vsn || {ranker, _, Vsn} <- application:loaded_applications() ] of
+    [] ->
+      "unknown";
+    [Vsn] ->
+      Vsn
+  end.
 
   

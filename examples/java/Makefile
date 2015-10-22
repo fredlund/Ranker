@@ -13,7 +13,7 @@ ebin:
 	mkdir -p ebin
 
 ebin/test.beam: src/test.erl
-	erlc -o ebin src/test.erl
+	erlc +debug_info -o ebin src/test.erl
 
 ebin/corr.beam: src/corr.erl
-	erlc -o ebin src/corr.erl
+	erlc +debug_info -o ebin src/corr.erl

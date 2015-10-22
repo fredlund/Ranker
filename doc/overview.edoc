@@ -65,8 +65,8 @@ As a result of the ranking analysis there will be a set of files corr_classes_X.
 To build and test the Erlang example, after having compiled
 the Ranker tool, follow the steps below:
 ```
-examples/java$ make
-examples/java$ erl -pa ../../_build/default/lib/ranker/ebin/ -pa ebin
+examples/erlang make
+examples/erlang erl -pa ../../_build/default/lib/ranker/ebin/ -pa ebin
 
 1> test:test().
 ...

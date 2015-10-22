@@ -13,7 +13,10 @@ ebin:
 	mkdir -p ebin
 
 ebin/test.beam: src/test.erl
-	erlc -I../../include -o ebin src/test.erl
+	erlc +debug_info -I../../include -o ebin src/test.erl
 
 ebin/corr.beam: src/corr.erl
-	erlc -I../../include -o ebin src/corr.erl
+	erlc +debug_info -I../../include -o ebin src/corr.erl
+
+dialyzer: 
+	dialyzer -c ebin ../../_build/default/lib/ranker/ebin
