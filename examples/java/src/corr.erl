@@ -217,5 +217,15 @@ print_value(Object) ->
   io_lib:format("~p",[Object]).
 
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+generator() ->
+  eqc_statem:commands(?MODULE).
+
+prop(Cmds,ImpId,ImpData) ->
+  eqc_statem:run_commands(?MODULE,Cmds,[{id,ImpId},{imp,ImpData}]).
+
+
+  
   
 

@@ -15,9 +15,7 @@ start(Implementations,_) ->
        end, Implementations), 
   ets:insert(?ETS_TABLE,{implementations,ImplementationIds}).
   
-start_implementation(Id) ->
-  [{_,ImplementationIds}] = ets:lookup(?ETS_TABLE,implementations),
-  {_,_Implementation} = lists:keyfind(Id,1,ImplementationIds),
+start_implementation(_) ->
   ok.
 
 stop_implementation(_,_) ->

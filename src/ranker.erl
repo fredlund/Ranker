@@ -15,27 +15,30 @@
 -define(DEBUGVAL(),false).
 -endif.
 
-classify(StatemModule,RecipeModule,Recipe,ImplementationList) ->
-  {ImplementationIds,Implementations} = lists:unzip(ImplementationList),
+classify(RankerModule,RecipeModule,Recipe,Implementations) ->
+  ImplementationIds =
+    lists:map
+      (fun (Imp) -> Imp#implementation.id end, 
+       Implementations),
   ets:new(?EtsTableName,[public,named_table]),
   ets:insert(?EtsTableName,{implementations,ImplementationIds}),
   ok = RecipeModule:start(Implementations,Recipe),
   _FinalClasses =
     ranker_classify:classify
-      (atom_to_list(StatemModule),
+      (atom_to_list(RankerModule),
        100,
        ImplementationIds,
-       eqc_statem:commands(StatemModule),
-       fun(Commands) -> run_for_each(StatemModule,RecipeModule,Commands) end).
+       fun RankerModule:generator/0,
+       fun(Data) -> run_for_each(RankerModule,RecipeModule,Data) end).
 
-run_for_each(StatemModule,RecipeModule,Cmds) ->
+run_for_each(RankerModule,RecipeModule,Data) ->
   Self = self(),
   [{_,Implementations}] = ets:lookup(?EtsTableName,implementations),
   lists:foreach
     (fun (ImpId) ->
 	 spawn_link
 	   (fun () ->
-		check(StatemModule,RecipeModule,Cmds,ImpId,Self)
+		check(RankerModule,RecipeModule,Data,ImpId,Self)
 	    end)
      end, Implementations),
   {Fails,Timeouts} = collect_fails(Implementations),
@@ -57,12 +60,12 @@ run_for_each(StatemModule,RecipeModule,Cmds) ->
   end,
   Fails++Timeouts.
 
-check(StatemModule,RecipeModule,Cmds,ImpId,Parent) ->
+check(RankerModule,RecipeModule,Data,ImpId,Parent) ->
   ImpData = RecipeModule:start_implementation(ImpId),
   {Time,{_H1,_DS1,Res1}} =
     timer:tc
     (fun () -> 
-	 eqc_statem:run_commands(StatemModule,Cmds,[{id,ImpId},{imp,ImpData}])
+	 RankerModule:prop(Data,ImpId,ImpData)
      end),
   Seconds = Time/1000000,
   if

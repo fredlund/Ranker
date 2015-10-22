@@ -8,7 +8,7 @@ test() ->
   Implementations =
     lists:map
       (fun (Dir) ->
-	   {Dir,java_reuse_recipe:make_implementation(Dir,Dir++"/classes")}
+	   java_reuse_recipe:make_implementation(Dir,Dir++"/classes")
        end, Dirs),
   Recipe = 
     java_reuse_recipe:make_recipe
