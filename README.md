@@ -7,8 +7,7 @@ __Authors:__ [`Lars-Ake Fredlund (lfredlund@fi.upm.es), Clara Benac Earle (cbena
 Ranker is a library that helps compare, using testing, how well different
 implementations of the same specification behave, obtaining 
 a "ranking" of the implementations (which are better, which are worse).
-The library uses Quviq QuickCheck test
-tool for testing.
+The library uses the Quviq QuickCheck tool for testing.
 
 
 ## Build, Test, and Generate Markdown Docs ##
@@ -37,5 +36,50 @@ $ env ERL_LIBS=$PWD/_build/default/lib/edown rebar3 edoc
 
 ## Examples ##
 
-The `examples` directory contains a number of examples.
+The `examples` directory contains two examples, a set of Java based
+implementations of a simple sorting algorithm in the directory java, and
+a set of Erlang based implementations of a list reversal in the 
+directory erlang.
+
+
+### Java Example ###
+
+
+A prerequisite for working with the Java example is having
+the [JavaErlang](https://github.com/fredlund/JavaErlang.git) library installed. 
+To build and test the Java example, after having compiled
+the Ranker tool, follow the steps below:
+
+```
+examples/java$ make
+examples/java$ erl -sname tst -pa ../../_build/default/lib/ranker/ebin/ -pa ebin
+
+1> test:test().
+...
+2> ranker_render:render_classes("corr").
+...
+3> halt().
+```
+
+As a result of the ranking analysis there will be a set of files corr_classes_X.{bin,dot,interpretation,pdf} which describe the computed ranking (step-by-step).
+
+
+### Erlang Example ###
+
+
+To build and test the Erlang example, after having compiled
+the Ranker tool, follow the steps below:
+
+```
+examples/java$ make
+examples/java$ erl -pa ../../_build/default/lib/ranker/ebin/ -pa ebin
+
+1> test:test().
+...
+2> ranker_render:render_classes("corr").
+...
+3> halt().
+```
+
+As a result of the ranking analysis there will be a set of files corr_classes_X.{bin,dot,interpretation,pdf} which describe the computed ranking (step-by-step).
 
