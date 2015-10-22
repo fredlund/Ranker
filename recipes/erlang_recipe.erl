@@ -2,7 +2,7 @@
 
 -export([start/2,start_implementation/2,stop_implementation/3,finish/0]).
 
--include("implementation.hrl").
+-behaviour(ranker_recipe).
 
 start(_Implementations,_) ->
   ok.

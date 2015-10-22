@@ -5,6 +5,7 @@
 -export([start/2,start_implementation/2,stop_implementation/3,finish/0]).
 
 -behaviour(gen_server).
+-behaviour(ranker_recipe).
 
 -record(state,{nodes,recipe,dist_model}).
 -record(node,{node_id,timeout,java_node_id,reuses_left,active_implementations,implementations,is_busy,is_alive,pending_starts,location,counter,status=idle}).
