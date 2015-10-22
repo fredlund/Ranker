@@ -14,8 +14,8 @@
 -define(ETS_TABLE,ranker_java_reuse_ets).
 
 -include("implementation.hrl").
--include("java_reuse_implementation.hrl").
 -include("java_reuse_recipe.hrl").
+-include("java_reuse_implementation.hrl").
 
 %%-define(debug,true).
 
@@ -123,8 +123,12 @@ handle_cast(_Msg={node_created,{NodeId,JavaNodeId}},State) ->
 handle_cast(_Msg={implementation_started,{ImplementationId,Reply,NodeId,JavaNodeId,Classes}},State) ->
   ?LOG("handle_cast(~p)~n",[_Msg]),
   Node = read_node(NodeId),
-  Implementation = read_implementation(ImplementationId),
-  write_implementation(Implementation#implementation{status=started}),
+  Implementation
+    = #implementation{private=Private}
+    = read_implementation(ImplementationId),
+  NewImplementation = 
+    Implementation#implementation{private=Private#java_reuse_implementation{status=started}},
+  write_implementation(NewImplementation),
   NewNode =
     Node#node
     {is_busy=false,
@@ -158,7 +162,7 @@ handle_info(timeout,State) ->
 	     Node#node.counter]),
 	 lists:foreach
 	   (fun (NodeImplementation) ->
-		Implementation = read_implementation(NodeImplementation#implementation.implementation_id),
+		Implementation = read_implementation(NodeImplementation#implementation.id),
 		io:format("~p,",[Implementation])
 	    end, Node#node.implementations),
 	 io:format("~n~n")
@@ -201,9 +205,10 @@ do_something(Node,#state{recipe=Recipe} = State) ->
 start_node(Node = #node{node_id=NodeId,pending_starts=Pending,implementations=Implementations},State) ->
   ?LOG("Will start node ~p~n",[NodeId]),
   [{ImplementationId,_}|_] = Pending,
-  Implementation = read_implementation(ImplementationId),
+  #implementation{private=Private}
+    = read_implementation(ImplementationId),
   #java_reuse_recipe{args=PreArgs,classpath=PreClassPath} = State#state.recipe,
-  ClassPath = [Implementation#implementation.path|PreClassPath],
+  ClassPath = [Private#java_reuse_implementation.path|PreClassPath],
   Args = [{add_to_java_classpath,ClassPath}|PreArgs],
   {ErlangNode,_,_} = select_node(),
   CompleteSpec = 
@@ -232,15 +237,18 @@ start_node(Node = #node{node_id=NodeId,pending_starts=Pending,implementations=Im
 	 DefaultClassPool =
 	   java:call_static(JavaNodeId,'javassist.ClassPool',getDefault,[]),
 	 lists:foreach
-	   (fun (NodeImplementation) ->
+	   (fun (#implementation{private=NodePrivate} = NodeImplementation) ->
 		ClassPool =
 		  if
-		    NodeImplementation#implementation.implementation_id == ImplementationId ->
+		    NodeImplementation#implementation.id == ImplementationId ->
 		      DefaultClassPool;
 		    true ->
 		      void
 		  end,
-		write_implementation(NodeImplementation#implementation{classpool=ClassPool})
+		NewNodeImplementation =
+		  NodeImplementation#implementation
+		  {private=NodePrivate#java_reuse_implementation{classpool=ClassPool}},
+		write_implementation(NewNodeImplementation)
 	    end, Implementations),
 	 gen_server:cast(ServerId,{node_created,{NodeId,JavaNodeId}})
      end).

@@ -223,7 +223,12 @@ generator() ->
   eqc_statem:commands(?MODULE).
 
 prop(Cmds,ImpId,ImpData) ->
-  eqc_statem:run_commands(?MODULE,Cmds,[{id,ImpId},{imp,ImpData}]).
+  case eqc_statem:run_commands(?MODULE,Cmds,[{id,ImpId},{imp,ImpData}]) of
+    {_,_,Res} ->
+      Res==ok;
+    _ ->
+      false
+  end.
 
 
   

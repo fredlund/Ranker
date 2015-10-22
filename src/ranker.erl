@@ -3,6 +3,8 @@
 -compile(export_all).
 -include_lib("eqc/include/eqc.hrl").
 
+-include("implementation.hrl").
+
 %%-define(debug,true).
 
 -define(EtsTableName,ranker_ets).
@@ -28,7 +30,7 @@ classify(RankerModule,RecipeModule,Recipe,Implementations) ->
       (atom_to_list(RankerModule),
        100,
        ImplementationIds,
-       fun RankerModule:generator/0,
+       RankerModule:generator(),
        fun(Data) -> run_for_each(RankerModule,RecipeModule,Data) end).
 
 run_for_each(RankerModule,RecipeModule,Data) ->
@@ -62,7 +64,7 @@ run_for_each(RankerModule,RecipeModule,Data) ->
 
 check(RankerModule,RecipeModule,Data,ImpId,Parent) ->
   ImpData = RecipeModule:start_implementation(ImpId),
-  {Time,{_H1,_DS1,Res1}} =
+  {Time,Result} =
     timer:tc
     (fun () -> 
 	 RankerModule:prop(Data,ImpId,ImpData)
@@ -76,23 +78,6 @@ check(RankerModule,RecipeModule,Data,ImpId,Parent) ->
     true ->
       ok
   end,
-  if 
-    Res1=/=ok ->
-      io:format
-	("Implementation ~p failed with exit code ~p~n",
-	 [ImpId,Res1]);
-    true -> 
-      ok
-  end,
-  Result = 
-    case Res1 of
-      ok -> false;
-      java_timeout -> timeout;
-      {exception,java_timeout} -> timeout;
-      %% Not sure how this can happen??
-      {postcondition,java_timeout} -> timeout; 
-      _Other -> true
-    end,
   RecipeModule:stop_implementation(ImpId,Result),
   Parent!{implementation,ImpId,Result}.
 
