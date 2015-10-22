@@ -216,7 +216,7 @@ start_node(Node = #node{node_id=NodeId,pending_starts=Pending,implementations=Im
       local -> Args;
       _ -> [{erlang_remote,ErlangNode}|Args]
     end,
-  io:format
+  ?LOG
     ("starting node ~p at ~p; principal implementation ~p~n",
      [NodeId,ErlangNode,ImplementationId]),
   ServerId = self(),

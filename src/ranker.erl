@@ -1,13 +1,13 @@
 -module(ranker). 
 
--compile(export_all).
--include_lib("eqc/include/eqc.hrl").
+-export([classify/4,version/0]).
 
+-include_lib("eqc/include/eqc.hrl").
 -include("implementation.hrl").
 
-%%-define(debug,true).
-
 -define(EtsTableName,ranker_ets).
+
+%%-define(debug,true).
 
 -ifdef(debug).
 -define(LOG(X,Y), io:format("{~p,~p}: ~s~n", [?MODULE,?LINE,io_lib:format(X,Y)])).
@@ -17,7 +17,7 @@
 -define(DEBUGVAL(),false).
 -endif.
 
--spec(classify(atom(),atom(),any(),[#implementation{}]) -> [any()]).
+-spec classify(atom(),atom(),any(),[#implementation{}]) -> [any()].
 classify(RankerModule,RecipeModule,Recipe,Implementations) ->
   ImplementationIds =
     lists:map
@@ -47,7 +47,7 @@ run_for_each(RankerModule,RecipeModule,Data) ->
   {Fails,Timeouts} = collect_fails(Implementations),
   if
     Fails=/=[] ->
-      io:format
+      ?LOG
 	("Failing implementations:~n~p~n",
 	 [lists:usort(Fails)]);
     true ->
@@ -55,7 +55,7 @@ run_for_each(RankerModule,RecipeModule,Data) ->
   end,
   if
     Timeouts=/=[] ->
-      io:format
+      ?LOG
 	("Timeouts: ~p~n",
 	 [lists:usort(Timeouts)]);
      true ->
@@ -74,7 +74,7 @@ check(RankerModule,RecipeModule,Data,ImpId,Parent) ->
   if
     Seconds>5.0 ->
       io:format
-	("Warning: time=~p for implementation ~p~n",
+	("*** Warning: time=~p for implementation ~p~n",
 	 [Seconds,ImpId]);
     true ->
       ok
@@ -96,6 +96,7 @@ collect_fails([_|Rest],Fails,Timeouts) ->
       end
     end.
 
+-spec version() -> string().
 version() ->
   case [ Vsn || {ranker, _, Vsn} <- application:loaded_applications() ] of
     [] ->

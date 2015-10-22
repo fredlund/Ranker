@@ -1,20 +1,26 @@
-%%% File    : classify.erl
-%%% Author  :  <>
-%%% Description : 
-%%% Created : 25 May 2010 by  <>
-
 -module(ranker_classify).
 -include_lib("eqc/include/eqc.hrl").
 
--compile(export_all).
+-export([classify/5,graph/5]).
 
 -record(result,{testcase,failures,successes}).
 
 -define(ETS_TABLE,ranker_classify_ets).
 
-classify(Name,N,Implementations,Gen,Test) ->
+%%-define(debug,true).
+
+-ifdef(debug).
+-define(LOG(X,Y), io:format("{~p,~p}: ~s~n", [?MODULE,?LINE,io_lib:format(X,Y)])).
+-define(DEBUGVAL(),true).
+-else.
+-define(LOG(X,Y), ok).
+-define(DEBUGVAL(),false).
+-endif.
+
+-spec classify(string(),integer(),[any()],any(),fun((any()) -> boolean())) -> [#result{}].
+classify(Name,N,Implementations,Gen,Test) -> 
   ranker_create_ets_table:ensure_open(?ETS_TABLE),
-  io:format("Implementations are~n~p~n",[Implementations]),
+  ?LOG("Implementations are~n~p~n",[Implementations]),
   classes(Name,1,Implementations,N,[],Gen,Test).
 
 classes(Name,I,Implementations,N,Classes,Gen,Test) ->
@@ -41,76 +47,74 @@ classes(Name,I,Implementations,N,Classes,Gen,Test) ->
       length(AllPairs),
       length(AllIncomparables) div 2,
       length(AllEqual)]),
-
-  %% io:format
-  %%("~nall loaded size:~p~n~p~n",[length(code:all_loaded()),code:all_loaded()]),
-    ets:insert(?ETS_TABLE,{fail,void}),
-    case counterexample(prop_complete(Classes,Gen,Implementations,Test)) of
-      true ->
-	file:write_file
-	  (Name++"_classes_"++integer_to_list(I)++".bin",
-	   term_to_binary({classified,Implementations,Classes})),
-	Classes;
-      [TestCase] ->
-	timer:sleep(3000),
-	io:format
-	  ("Failing test case:~n~p~n~n------ Retesting --------~n~n",
-	   [TestCase]),
-	Ps = lists:usort(Test(TestCase)),
-	ResultP = #result{failures=Ps,successes=Implementations--Ps,testcase=TestCase},
-	if
-	  Ps==[] ->
-	    io:format("*** Warning: ps is nil for ~p~n",[TestCase]);
+  
+  ets:insert(?ETS_TABLE,{fail,void}),
+  case counterexample(prop_complete(Classes,Gen,Implementations,Test)) of
+    true ->
+      file:write_file
+	(Name++"_classes_"++integer_to_list(I)++".bin",
+	 term_to_binary({classified,Implementations,Classes})),
+      Classes;
+    [TestCase] ->
+      timer:sleep(3000),
+      ?LOG
+	("Failing test case:~n~p~n~n------ Retesting --------~n~n",
+	 [TestCase]),
+      Ps = lists:usort(Test(TestCase)),
+      ResultP = #result{failures=Ps,successes=Implementations--Ps,testcase=TestCase},
+      if
+	Ps==[] ->
+	  io:format("*** Warning: ps is nil for ~p~n",[TestCase]);
+	true ->
+	  ok
+      end,
+      IsCovered =
+	case covered(Classes,ResultP) of
 	  true ->
-	    ok
+	    io:format
+	      ("*** Warning: failing implementations~n~s~nARE COVERED BY~n tests~n~s~n",
+	       [print_class(ResultP),print_classes(Classes)]),
+	    true;
+	  {false,_} ->
+	    false
 	end,
-	IsCovered =
-	  case covered(Classes,ResultP) of
-	    true ->
-	      io:format
-		("*** Warning: failing implementations~n~s~nARE COVERED BY~n tests~n~s~n",
-		 [print_class(ResultP),print_classes(Classes)]),
-	      true;
-	    {false,_} ->
-	      false
-	  end,
-	%% As an (expensive) sanity check, check that computed failing
-	%% implementations is stable...
-	Qs = lists:usort(Test(TestCase)),
-	ValuesDiffer =
-	  if
-	    Ps=/=Qs ->
-	      io:format
-		("*** Warning: values differ??? ps:~n~p~n qs:~n~p~n",
-		 [Ps,Qs]),
-	      true;
-	    true -> false
-	  end,
+      %% As an (expensive) sanity check, check that computed failing
+      %% implementations is stable...
+      Qs = lists:usort(Test(TestCase)),
+      ValuesDiffer =
 	if
-	  not(IsCovered), not(ValuesDiffer) ->
-	    NewClasses = independent(Classes++[ResultP]),
+	  Ps=/=Qs ->
 	    io:format
-	      ("Tests were ~n~s~n; new ones are ~n~s~n",
-	       [print_classes(Classes),print_classes(NewClasses)]),
-	    io:format
-	      ("Testcase~n~p~nwith failures~n~p~n",[TestCase,Ps]),
-	    file:write_file
-	      (Name++"_classes_"++integer_to_list(I)++".bin",
-	       term_to_binary({classified,Implementations,NewClasses})),
-	    UC = lists:usort(Classes), NC = lists:usort(NewClasses),
-	    if
-	      UC=/=NC ->
-		io:format
-		  ("NewTests=~n~p~nOldTests=~n~p~n",
-		   [UC,NC]);
-	      true -> ok
-	    end,
-	    classes(Name,I+1,Implementations,N,NewClasses,Gen,Test);
-	  true ->
-	    io:format("Warning: repeating iteration ~p~n",[I]),
-	    classes(Name,I,Implementations,N,Classes,Gen,Test)
-	end
-    end.
+	      ("*** Warning: values differ??? ps:~n~p~n qs:~n~p~n",
+	       [Ps,Qs]),
+	    true;
+	  true -> false
+	end,
+      if
+	not(IsCovered), not(ValuesDiffer) ->
+	  NewClasses = independent(Classes++[ResultP]),
+	  ?LOG
+	    ("Tests were ~n~s~n; new ones are ~n~s~n",
+	     [print_classes(Classes),print_classes(NewClasses)]),
+	  ?LOG
+	    ("Testcase~n~p~nwith failures~n~p~n",[TestCase,Ps]),
+	  file:write_file
+	    (Name++"_classes_"++integer_to_list(I)++".bin",
+	     term_to_binary({classified,Implementations,NewClasses})),
+	  UC = lists:usort(Classes), NC = lists:usort(NewClasses),
+	  if
+	    UC=/=NC ->
+	      ?LOG
+		("NewTests=~n~p~nOldTests=~n~p~n",
+		 [UC,NC]);
+	    true -> ok
+	  end,
+	  classes(Name,I+1,Implementations,N,NewClasses,Gen,Test);
+	true ->
+	  io:format("Warning: repeating iteration ~p~n",[I]),
+	  classes(Name,I,Implementations,N,Classes,Gen,Test)
+      end
+  end.
 
 print_classes(Classes) ->
   lists:foldl
@@ -128,13 +132,8 @@ prop_complete(Classes,Gen,Implementations,Test) ->
 	  Gen,
 	  pcovered(Classes,Test,Implementations,TestCase)).
 
-%% Don't we forget old information???
-%% Another approach would be to systematically 
-%% What is the datastructure? We should describe it.
-%% What about the sum of classes? 
-%% How long can the analysis take? (what is the bound?)
 independent(Classes) ->
-    [Class || Class <- Classes, not to_bool(covered(Classes--[Class],Class))].
+  [Class || Class <- Classes, not to_bool(covered(Classes--[Class],Class))].
 
 pcovered(Classes,Test,Implementations,TestCase) ->
   Ps = lists:usort(Test(TestCase)),
@@ -143,7 +142,7 @@ pcovered(Classes,Test,Implementations,TestCase) ->
   Covered = to_bool(CovResult),
   if
     not(Covered) ->
-      io:format
+      ?LOG
 	("~s~nIS NOT COVERED BY~n~s~n",
 	 [print_class(Result),
 	  print_classes(Classes)]);
@@ -156,15 +155,15 @@ pcovered(Classes,Test,Implementations,TestCase) ->
 	[{fail,Fail}] = ets:lookup(?ETS_TABLE,fail),
 	case shrink_measure(Fail,Result,CovResult) of
 	  {true,NewMeasure} ->
-	    io:format
+	    ?LOG
 	      ("shrinking succeeded: was ~p is ~p~n",
 	       [Fail,NewMeasure]),
 	    ets:insert(?ETS_TABLE,{fail,NewMeasure}),
 	    false;
-	  {false,NewMeasure} ->
-	    io:format
+	  {false,_NewMeasure} ->
+	    ?LOG
 	      ("shrinking failed: was ~p suggested new ~p~n",
-	       [Fail,NewMeasure]),
+	       [Fail,_NewMeasure]),
 	    true
 	end;
       true -> true
@@ -172,9 +171,9 @@ pcovered(Classes,Test,Implementations,TestCase) ->
   Covering.
 
 shrink_measure(PreOldMeasure,Result,CovResult) ->
-  %%shrink_measure_higher(PreOldMeasure,Result,CovResult).
+  shrink_measure_higher(PreOldMeasure,Result,CovResult).
   %%shrink_measure_normal(PreOldMeasure,Result,CovResult).
-  shrink_measure_lower(PreOldMeasure,Result,CovResult).
+  %%shrink_measure_lower(PreOldMeasure,Result,CovResult).
 
 shrink_measure_higher(PreOldMeasure,Result,{false,CovMeasure}) ->
   NumFailures =
@@ -200,81 +199,44 @@ shrink_measure_higher(PreOldMeasure,Result,{false,CovMeasure}) ->
       {false,NewMeasure}
   end.
 
-shrink_measure_normal(_PreOldMeasure,_Result,{false,CovMeasure}) ->
-  NewMeasure =
-    CovMeasure,
-  {true,NewMeasure}.
-
-shrink_measure_never(PreOldMeasure,_Result,{false,CovMeasure}) ->
-  NewMeasure =
-    %%SizeOfNewPairs
-    CovMeasure,
-  if
-    PreOldMeasure==void ->
-      {true,NewMeasure};
-    true ->
-      {false,NewMeasure}
-  end.
-
-shrink_measure_lower(PreOldMeasure,Result,{false,CovMeasure}) ->
-  NumFailures =
-    length(Result#result.failures),
-  NumSuccesses =
-    length(Result#result.successes),
-  _SizeOfNewPairs = 
-    NumFailures*NumSuccesses,
-  NewMeasure =
-    CovMeasure,
-  OldMeasure =
-    if
-      PreOldMeasure==void ->
-	99999999;
-      true ->
-	PreOldMeasure
-    end,
-  if
-    NewMeasure =< OldMeasure ->
-      {true,NewMeasure};
-    true ->
-      {false,NewMeasure}
-  end.
-
-intersection([],_) ->
-  [];
-intersection(_,[]) ->
-  [];
-intersection(L1=[H1|T1],L2=[H2|T2]) ->
-  if
-    H1>H2 ->
-      intersection(L1,T2);
-    H2>H1 ->
-      intersection(T1,L2);
-    true ->
-      [H1|intersection(T1,T2)]
-  end.
-
-subset([],_) ->
-  true;
-subset(_,[]) ->
-  false;
-subset([H1|T1],[H1|T2]) ->
-  subset(T1,T2);
-subset(L1=[H1|_],[H2|T2]) ->
-  if
-    H2 < H1 ->
-      subset(L1,T2);
-    true ->
-      false
-  end.
-
-%%covered(Classes,Result) ->
-%%  Ps = Result#result.failures,
-%%  Ps ==
-%%    lists:usort([P || Ps0 <-
-%%			lists:map(fun (Class) -> Class#result.failures end,
-%%				  Classes),
-%%		      Ps0 -- Ps == [],
-%%		      P <- Ps0]).
+%% shrink_measure_normal(_PreOldMeasure,_Result,{false,CovMeasure}) ->
+%%   NewMeasure =
+%%     CovMeasure,
+%%   {true,NewMeasure}.
+%% 
+%% shrink_measure_never(PreOldMeasure,_Result,{false,CovMeasure}) ->
+%%   NewMeasure =
+%%     %%SizeOfNewPairs
+%%     CovMeasure,
+%%   if
+%%     PreOldMeasure==void ->
+%%       {true,NewMeasure};
+%%     true ->
+%%       {false,NewMeasure}
+%%   end.
+%% 
+%% shrink_measure_lower(PreOldMeasure,Result,{false,CovMeasure}) ->
+%%   NumFailures =
+%%     length(Result#result.failures),
+%%   NumSuccesses =
+%%     length(Result#result.successes),
+%%   _SizeOfNewPairs = 
+%%     NumFailures*NumSuccesses,
+%%   NewMeasure =
+%%     CovMeasure,
+%%   OldMeasure =
+%%     if
+%%       PreOldMeasure==void ->
+%% 	99999999;
+%%       true ->
+%% 	PreOldMeasure
+%%     end,
+%%   if
+%%     NewMeasure =< OldMeasure ->
+%%       {true,NewMeasure};
+%%     true ->
+%%       {false,NewMeasure}
+%%   end.
 
 to_bool({Value,_}) ->
   to_bool(Value);
@@ -304,35 +266,35 @@ calculate_graph(Implementations,PreClasses) ->
   Classes =
     lists:map (fun (Class) -> {Class#result.testcase,
 			       Class#result.failures} end, PreClasses),
-    Successes = [{P,[T || {T,Ps0} <- Classes,
-			  not lists:member(P,Ps0)]}
-		 || P <- Implementations],
-    Equivalences = lists:usort([ {[ Q || {Q,Tq} <- Successes, Tq==T],T}
-		    || {_P,T} <- Successes]),
-    io:format("Successes = ~p\n",[Successes]),
-    io:format("Equivalences = ~p\n",[Equivalences]),
-    Edges = [{P,Q,TsP--TsQ}
-	     || {P,TsP} <- Equivalences,
-		{Q,TsQ} <- Equivalences,
-		P/=Q,
-		TsQ--TsP == [],
-		[] ==
-		    [R || {R,TsR} <- Equivalences,
-			  R/=P,
-			  R/=Q,
-			  TsR--TsP == [],
-			  TsQ--TsR == []]],
-    io:format("Edges = ~p\n",[Edges]),
-    States = [P || {P,_} <- Equivalences],
-  io:format("States=~n~p~nEdges=~n~p~n",[States,Edges]),
-  io:format("num states=~p num edges=~p~n",[length(States),length(Edges)]),
+  Successes = [{P,[T || {T,Ps0} <- Classes,
+			not lists:member(P,Ps0)]}
+	       || P <- Implementations],
+  Equivalences = lists:usort([ {[ Q || {Q,Tq} <- Successes, Tq==T],T}
+			       || {_P,T} <- Successes]),
+  ?LOG("Successes = ~p\n",[Successes]),
+  ?LOG("Equivalences = ~p\n",[Equivalences]),
+  Edges = [{P,Q,TsP--TsQ}
+	   || {P,TsP} <- Equivalences,
+	      {Q,TsQ} <- Equivalences,
+	      P/=Q,
+	      TsQ--TsP == [],
+	      [] ==
+		[R || {R,TsR} <- Equivalences,
+		      R/=P,
+		      R/=Q,
+		      TsR--TsP == [],
+		      TsQ--TsR == []]],
+  ?LOG("Edges = ~p\n",[Edges]),
+  States = [P || {P,_} <- Equivalences],
+  ?LOG("States=~n~p~nEdges=~n~p~n",[States,Edges]),
+  ?LOG("num states=~p num edges=~p~n",[length(States),length(Edges)]),
   {States,Edges}.
 
 graph(Name,Render,Implementations,Classes,Options) ->
   {States,Edges} = calculate_graph(Implementations,Classes),
-  io:format("Saving result in ~s~n",[Name++".dot"]),
+  ?LOG("Saving result in ~s~n",[Name++".dot"]),
   StateMap = render_states(States),
-  io:format("StateMap is~n~p~n",[StateMap]),
+  ?LOG("StateMap is~n~p~n",[StateMap]),
   {NewEdges,_,EdgeMap} =
     case proplists:get_value(symbolic_edges,Options) of
       true -> symbolic_edges(Edges);
@@ -391,24 +353,24 @@ state(P,StateMap) ->
   State.
 
 symbolic_edges(Edges) ->
-  io:format("Edges is ~p~n",[Edges]),
+  ?LOG("Edges is ~p~n",[Edges]),
   Result=
-  lists:foldl
-    (fun (_Edge={P,Q,Ts},{NewEdges,Counter,Map}) ->
-	 {NewTs,NewCounter,NewMap} =
-	   lists:foldl
-	     (fun (T,{NewTs1,NewCounter1,NewMap1}) ->
-		  case lists:keyfind(T,1,NewMap1) of
-		    {_,Value} -> {[Value|NewTs1],NewCounter1,NewMap1};
-		    false -> 
-		      ST=NewCounter1,
-		      {[ST|NewTs1],NewCounter1+1,[{T,ST}|NewMap1]}
-		  end
-	      end,
-	      {[],Counter,Map}, Ts),
-	 {[{P,Q,{symbolic,NewTs}}|NewEdges],NewCounter,NewMap}
-     end, {[],0,[]}, Edges),
-  io:format("NewEdges is ~p~n",[element(1,Result)]),
+    lists:foldl
+      (fun (_Edge={P,Q,Ts},{NewEdges,Counter,Map}) ->
+	   {NewTs,NewCounter,NewMap} =
+	     lists:foldl
+	       (fun (T,{NewTs1,NewCounter1,NewMap1}) ->
+		    case lists:keyfind(T,1,NewMap1) of
+		      {_,Value} -> {[Value|NewTs1],NewCounter1,NewMap1};
+		      false -> 
+			ST=NewCounter1,
+			{[ST|NewTs1],NewCounter1+1,[{T,ST}|NewMap1]}
+		    end
+		end,
+		{[],Counter,Map}, Ts),
+	   {[{P,Q,{symbolic,NewTs}}|NewEdges],NewCounter,NewMap}
+       end, {[],0,[]}, Edges),
+  ?LOG("NewEdges is ~p~n",[element(1,Result)]),
   Result.
 
 calculate_paths(States,Edges) ->
@@ -430,7 +392,7 @@ calculate_paths(States,Edges) ->
     (fun ({_,Path1},{_,Path2}) ->
 	 path_length(Path1) =< path_length(Path2)
      end, Paths).
-  
+
 calculate_all_paths(States,Edges) ->
   Starters =
     lists:filter
@@ -439,16 +401,16 @@ calculate_all_paths(States,Edges) ->
        end,States),
   _NonStarters = 
     States--Starters,
-  io:format("Starters are~n~p~nNonstarters:~n~p~n",[Starters,_NonStarters]),
+  ?LOG("Starters are~n~p~nNonstarters:~n~p~n",[Starters,_NonStarters]),
   StarterPaths =
     lists:map
       (fun (State) -> {State,[],[]} end, Starters),
-  io:format("Starterpaths=~n~p~n",[StarterPaths]),
+  ?LOG("Starterpaths=~n~p~n",[StarterPaths]),
   lists:map
     (fun (State) ->
 	 {State,all_paths_to(State,Starters,StarterPaths,Edges)}
      end, States).
-  
+
 statistics(Name,States,Edges) ->
   {ok,File} = file:open(Name++".results",[write]),
   io:format(File,"Path Results:~n~n",[]),
@@ -464,13 +426,13 @@ statistics(Name,States,Edges) ->
      end,
      calculate_all_paths(States,Edges)),
   file:close(File).
-    
+
 path_length([]) -> 0;
 path_length([First|Rest]) ->
   length(First)+path_length(Rest).
 
 find_path_to(State,CurrentPaths,Edges) ->
-  %%io:format("CurrentPaths are~n~p~n",[CurrentPaths]),
+  %%?LOG("CurrentPaths are~n~p~n",[CurrentPaths]),
   case lists:keyfind(State, 1, CurrentPaths) of
     {_,Path} -> Path;
     false ->
@@ -497,7 +459,7 @@ find_path_to(State,CurrentPaths,Edges) ->
 	false -> throw(badarg)
       end
   end.
-		      
+
 all_paths_to(State,Starters,StarterPaths,Edges) ->
   case lists:member(State,Starters) of
     true -> 
@@ -508,7 +470,7 @@ all_paths_to(State,Starters,StarterPaths,Edges) ->
   end.
 
 all_paths_to1(State,AlivePaths,Edges,FPs) ->
-  io:format
+  ?LOG
     ("all_paths_to: state=~p alivepaths=~n~p~nfps=~n~p~n",
      [State,AlivePaths,FPs]),
   {AllAlivePaths,AllFinishedPaths} =
@@ -556,11 +518,11 @@ render_states(States) ->
 	end, {0,[]}, States)).
 
 dot_p(RenderedState) ->
-  io:format("RenderedState=~p~n",[RenderedState]),
+  ?LOG("RenderedState=~p~n",[RenderedState]),
   io_lib:format("~s [];\n",[RenderedState]).
 
 dot_name(LStrs,Counter) ->
-  io:format("dot_name(~p)~n",[LStrs]),
+  ?LOG("dot_name(~p)~n",[LStrs]),
   case length(LStrs) of
     N when N<4 ->
       {Counter,
@@ -578,7 +540,7 @@ dot_name(LStrs,Counter) ->
 	 integer_to_list(Counter)++
 	 " (#"++integer_to_list(N)++")\""}
   end.
-      
+
 
 shorten(Name) ->
   case string:str(Name,"_") of
@@ -595,7 +557,7 @@ dot_e(Render,P,Q,Ts) ->
 	render_numbers(CompressedNumbers);
       _ ->
 	render_edge(Render,Ts)
-  end,
+    end,
   io_lib:format
     ("~s -> ~s [label=\"~s\"];\n",
      [P,Q,EdgeString]).
@@ -641,34 +603,14 @@ compress(N,L=[M|Rest]) ->
 render_edge(Renderer,Ts) ->
   lists:map
     (fun (T) ->
-	 io:format("T is ~p~n",[T]),
+	 ?LOG("T is ~p~n",[T]),
 	 case T of
 	   [{symbolic,E}] -> atom_to_list(E);
 	   _ -> Renderer(T)
 	 end
      end, Ts).
 
-view_dot(Mod,ImageType) ->
-    Name = atom_to_list(Mod),
-    Type = atom_to_list(ImageType),
-    oscmd("EQC_DOT","dot","-T"++Type++" "++Name++".dot -o"++Name++"."++Type),
-    spawn(fun()->oscmd("EQC_VIEWER","",Name++"."++Type) end).
-
-oscmd(EnvVar,Default,Args) ->
-    CmdName = case os:getenv(EnvVar) of
-		  false ->
-		      Default;
-		  S ->
-		      S
-	      end,
-    Cmd = CmdName ++ " " ++ Args,
-    io:format("Running ~s (set ~s to change)~n",[Cmd,EnvVar]),
-    io:format(os:cmd(Cmd)).
-
 print_time() ->
   {Year,Month,Day} = date(),
   {Hour,Minute,Second} = time(),
   io_lib:format("~p-~p-~p@~p:~p:~p",[Year,Month,Day,Hour,Minute,Second]).
-
-  
-

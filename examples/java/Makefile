@@ -17,3 +17,6 @@ ebin/test.beam: src/test.erl
 
 ebin/corr.beam: src/corr.erl
 	erlc +debug_info -o ebin src/corr.erl
+
+dialyzer: 
+	dialyzer --apps java_erlang -c ebin ../../_build/default/lib/ranker/ebin

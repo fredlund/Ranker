@@ -7,6 +7,23 @@
 
 -record(state,{started,object,args,id}).
 
+%%-define(debug,true).
+
+-ifdef(debug).
+-define(LOG(X,Y), io:format("{~p,~p}: ~s~n", [?MODULE,?LINE,io_lib:format(X,Y)])).
+-define(DEBUGVAL(),true).
+-else.
+-define(LOG(X,Y), ok).
+-define(DEBUGVAL(),false).
+-endif.
+
+-ifdef(debug).
+-define(PRINT_JAVA_STACKTRACE(EXC),java:print_stacktrace(EXC)).
+-else.
+-define(PRINT_JAVA_STACKTRACE(EXC),ok).
+-endif.
+
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 initial_state() ->
@@ -152,27 +169,27 @@ extract_ints(Other) ->
   Other.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-not_exception(Id,Call,java_timeout) ->
-  io:format("***~p: call ~p timed out~n",[Id,Call]),
-  io:format("~n"),
+not_exception(_Id,_Call,java_timeout) ->
+  ?LOG("***~p: call ~p timed out~n",[_Id,_Call]),
+  ?LOG("~n",[]),
   false;
-not_exception(Id,Call,{java_exception,Exc}) ->
-  io:format("***~p: call ~p returns a java exception~n",[Id,Call]),
-  java:print_stacktrace(Exc),
-  io:format("~n"),
+not_exception(_Id,_Call,{java_exception,_Exc}) ->
+  ?LOG("***~p: call ~p returns a java exception~n",[_Id,_Call]),
+  ?PRINT_JAVA_STACKTRACE(Exc),
+  ?LOG("~n",[]),
   false;
 not_exception(_,_,Return) ->
   case Return of
     _ when is_integer(Return) -> ok;
     {object,_,_,_,_} -> ok;
-    _ -> io:format("Return is ~p~n",[Return])
+    _ -> ?LOG("Return is ~p~n",[Return])
   end,
   true.
 
 expect_eq(Id,Call,Value,Result) ->
   case {Value,Result} of
     {_,java_timeout} ->
-      io:format
+      ?LOG
 	("~n***~p: ~p: expected postcondition value ~s; code timed out~n",
 	 [Id,Call,print_value(Value)]),
       false;
@@ -180,12 +197,12 @@ expect_eq(Id,Call,Value,Result) ->
       case java:instanceof(Obj,ClassName) of
         true -> true;
         false -> 
-          io:format
+          ?LOG
             ("~n***~p: ~p: expected exception ~p=/=~p~n",
              [Id,Call,ClassName,java:getSimpleClassName(Obj)]),
           false;
         {java_exception,Exception} ->
-          io:format
+          ?LOG
             ("*** ~p: exception ~p raised for instanceof(~p,~p)~n",
              [Id,java:getSimpleClassName(Exception),Obj,ClassName]),
           java:print_stacktrace(Exception),
@@ -201,7 +218,7 @@ expect_eq(Id,Call,Value,Result) ->
             true ->
               expect_eq(Id,Call,Value,java:call(Result,intValue,[]));
             false ->
-              io:format
+              ?LOG
                 ("~n***~p: ~p: expected postcondition value ~s=/=~s~n",
                  [Id,Call,print_value(Value),print_value(Result)]),
               false

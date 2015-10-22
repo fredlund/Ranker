@@ -27,7 +27,8 @@ test() ->
      
 node_spec() ->
   [{log_level,warning},
-   {java_verbose,"WARNING"},
+   {java_verbose,"SEVERE"},
+%%   {java_verbose,"WARNING"},
    {java_exception_as_value,true},
 %%   {java_timeout_as_value,true},
    {call_timeout,20000}].
