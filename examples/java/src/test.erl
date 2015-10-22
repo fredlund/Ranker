@@ -8,7 +8,7 @@ test() ->
   Implementations =
     lists:map
       (fun (Dir) ->
-	   java_reuse_recipe:make_implementation(Dir,Dir++"/classes")
+	   {Dir,Dir++"/classes"}
        end, Dirs),
   Recipe = 
     java_reuse_recipe:make_recipe
@@ -23,7 +23,8 @@ test() ->
     (corr,
      java_reuse_recipe,
      [Recipe,DistPlan],
-     Implementations).
+     Implementations,
+     []).
      
 node_spec() ->
   [{log_level,warning},

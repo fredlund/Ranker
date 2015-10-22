@@ -10,10 +10,11 @@ test() ->
     lists:map
     (fun (Dir) ->
 	 Index = string:substr(Dir,4),
-	 #implementation{id=Dir,private=list_to_atom("reverse"++Index)}
+	 {Dir,list_to_atom("reverse"++Index)}
      end, Dirs),
   ranker:classify
     (corr,
      erlang_recipe,
      [],
-     Implementations).
+     Implementations,
+     [{timeout,500}]).

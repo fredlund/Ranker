@@ -8,6 +8,7 @@ all: ebin ebin/corr.beam ebin/test.beam
 	(cd imp7; make)
 	(cd imp8; make)
 	(cd imp9; make)
+	(cd imp10; make)
 
 ebin:
 	mkdir -p ebin

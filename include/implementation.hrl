@@ -1,1 +1,1 @@
--record(implementation,{id,private}).
+-record(implementation,{id,pid,status,private}).

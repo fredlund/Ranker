@@ -1,8 +1,8 @@
 -module(java_reuse_recipe).
 
 -export([init/1,handle_call/3,handle_cast/2,handle_info/2,terminate/2,code_change/3]).
--export([make_implementation/2,make_recipe/6]).
--export([start/2,start_implementation/1,stop_implementation/2,finish/0]).
+-export([make_recipe/6]).
+-export([start/2,start_implementation/2,stop_implementation/3,finish/0]).
 
 -behaviour(gen_server).
 
@@ -13,7 +13,6 @@
 -define(GEN_SERVER_NAME,ranker_java_reuse).
 -define(ETS_TABLE,ranker_java_reuse_ets).
 
--include("implementation.hrl").
 -include("java_reuse_recipe.hrl").
 -include("java_reuse_implementation.hrl").
 
@@ -41,14 +40,10 @@ init([Recipe,Implementations,DistPlan]) ->
 
 handle_call(_Msg={start_implementation,ImplementationId},From,State) ->
   ?LOG("handle_call(~p)~n",[_Msg]),
-  PreImplementation
-    = #implementation{private=Private}
-    = read_implementation(ImplementationId),
-  Implementation =
-    PreImplementation#implementation
-    {private=Private#java_reuse_implementation{status=starting}},
+  PreImplementation = read_implementation(ImplementationId),
+  Implementation = PreImplementation#java_reuse_implementation{status=starting},
   write_implementation(Implementation),
-  NodeId = Private#java_reuse_implementation.node_id,
+  NodeId = Implementation#java_reuse_implementation.node_id,
   Node = read_node(NodeId),
   case lists:member(ImplementationId,Node#node.active_implementations) of
     true ->
@@ -66,14 +61,10 @@ handle_call(_Msg={start_implementation,ImplementationId},From,State) ->
 
 handle_call(_Msg={stop_implementation,ImplementationId,Result},From,State) ->
   ?LOG("handle_call(~p)~n",[_Msg]),
-  PreImplementation
-    = #implementation{private=Private}
-    = read_implementation(ImplementationId),
-  Implementation =
-    PreImplementation#implementation
-    {private=Private#java_reuse_implementation{status=idle}},
+  PreImplementation = read_implementation(ImplementationId),
+  Implementation = PreImplementation#java_reuse_implementation{status=idle},
   write_implementation(Implementation),
-  NodeId = Private#java_reuse_implementation.node_id,
+  NodeId = Implementation#java_reuse_implementation.node_id,
   Node = read_node(NodeId),
   Actives = Node#node.active_implementations,
   case not(lists:member(ImplementationId,Actives)) of
@@ -123,11 +114,8 @@ handle_cast(_Msg={node_created,{NodeId,JavaNodeId}},State) ->
 handle_cast(_Msg={implementation_started,{ImplementationId,Reply,NodeId,JavaNodeId,Classes}},State) ->
   ?LOG("handle_cast(~p)~n",[_Msg]),
   Node = read_node(NodeId),
-  Implementation
-    = #implementation{private=Private}
-    = read_implementation(ImplementationId),
-  NewImplementation = 
-    Implementation#implementation{private=Private#java_reuse_implementation{status=started}},
+  Implementation = read_implementation(ImplementationId),
+  NewImplementation = Implementation#java_reuse_implementation{status=started},
   write_implementation(NewImplementation),
   NewNode =
     Node#node
@@ -162,7 +150,9 @@ handle_info(timeout,State) ->
 	     Node#node.counter]),
 	 lists:foreach
 	   (fun (NodeImplementation) ->
-		Implementation = read_implementation(NodeImplementation#implementation.id),
+		Implementation =
+		  read_implementation
+		    (NodeImplementation#java_reuse_implementation.id),
 		io:format("~p,",[Implementation])
 	    end, Node#node.implementations),
 	 io:format("~n~n")
@@ -205,10 +195,9 @@ do_something(Node,#state{recipe=Recipe} = State) ->
 start_node(Node = #node{node_id=NodeId,pending_starts=Pending,implementations=Implementations},State) ->
   ?LOG("Will start node ~p~n",[NodeId]),
   [{ImplementationId,_}|_] = Pending,
-  #implementation{private=Private}
-    = read_implementation(ImplementationId),
+  Implementation = read_implementation(ImplementationId),
   #java_reuse_recipe{args=PreArgs,classpath=PreClassPath} = State#state.recipe,
-  ClassPath = [Private#java_reuse_implementation.path|PreClassPath],
+  ClassPath = [Implementation#java_reuse_implementation.path|PreClassPath],
   Args = [{add_to_java_classpath,ClassPath}|PreArgs],
   {ErlangNode,_,_} = select_node(),
   CompleteSpec = 
@@ -237,17 +226,18 @@ start_node(Node = #node{node_id=NodeId,pending_starts=Pending,implementations=Im
 	 DefaultClassPool =
 	   java:call_static(JavaNodeId,'javassist.ClassPool',getDefault,[]),
 	 lists:foreach
-	   (fun (#implementation{private=NodePrivate} = NodeImplementation) ->
+	   (fun (NodeImplementation) ->
 		ClassPool =
 		  if
-		    NodeImplementation#implementation.id == ImplementationId ->
+		    NodeImplementation#java_reuse_implementation.id
+		    == ImplementationId ->
 		      DefaultClassPool;
 		    true ->
 		      void
 		  end,
 		NewNodeImplementation =
-		  NodeImplementation#implementation
-		  {private=NodePrivate#java_reuse_implementation{classpool=ClassPool}},
+		  NodeImplementation#java_reuse_implementation
+		  {classpool=ClassPool},
 		write_implementation(NewNodeImplementation)
 	    end, Implementations),
 	 gen_server:cast(ServerId,{node_created,{NodeId,JavaNodeId}})
@@ -273,11 +263,10 @@ create_implementation(ImplementationId,
 	    State,
 	    ServerId) ->
   Implementation
-    = #implementation{private=Private}
+    = #java_reuse_implementation{classpool=ClassPool,path=Path}
     = read_implementation(ImplementationId),
-  #java_reuse_implementation{classpool=ClassPool,path=Path} = 
-    Private,
-  #java_reuse_recipe{classes=Classes} = State#state.recipe,
+  #java_reuse_recipe{classes=Classes} =
+    State#state.recipe,
   if
     %% We have to create a new classpool for the implementation
     ClassPool == void ->
@@ -289,8 +278,7 @@ create_implementation(ImplementationId,
 	 insertClassPath,
 	 [java:list_to_string(JavaNodeId,Path)]),
       NewImplementation =
-	Implementation#implementation
-	{private=Private#java_reuse_implementation{classpool=NewClassPool}},
+	Implementation#java_reuse_implementation{classpool=NewClassPool},
       write_implementation(NewImplementation),
       create_implementation(ImplementationId,Reply,Node,State,ServerId);
     
@@ -345,9 +333,8 @@ map_implementations_to_nodes(Implementations,#java_reuse_recipe{reuse_limit=Reus
       (fun (ImplementationsPerNode,{I,Acc}) ->
 	   ImplementationsPN =
 	     lists:map
-	       (fun (#implementation{private=Private} = Implementation) ->
-		    Implementation#implementation
-		      {private=Private#java_reuse_implementation{node_id=I}}
+	       (fun ({Id,Path}) ->
+		    #java_reuse_implementation{id=Id,node_id=I,path=Path}
 		end, ImplementationsPerNode),
 	   {I+1,
 	    [#node
@@ -380,11 +367,6 @@ make_recipe(Args,Classes,ClassPath,ReuseLimit,NumShares,ConcurrencyPermitted)
 	  reuse_limit=ReuseLimit*NumShares,
 	  permit_concurrent_implementations=ConcurrencyPermitted,
 	  num_node_shares=NumShares}.
-
-make_implementation(Id,Path) when is_list(Id), is_list(Path) ->
-  #implementation
-    {id=Id,
-     private=#java_reuse_implementation{path=Path,classpool=void}}.
 
 start_select(Plan) ->
   Mod =
@@ -451,10 +433,11 @@ start_erlang_nodes([{Host,Factor,LogLevel}|Rest],Started) ->
   end.
 
 write_implementation(Implementation) ->
-  ets:insert(?ETS_TABLE,{{implementation,Implementation#implementation.id},Implementation}).
+  Id = Implementation#java_reuse_implementation.id,
+  ets:insert(?ETS_TABLE,{{implementation,Id},Implementation}).
 
-read_implementation(ImplementationId) ->
-  [{_,Implementation}] = ets:lookup(?ETS_TABLE,{implementation,ImplementationId}),
+read_implementation(Id) ->
+  [{_,Implementation}] = ets:lookup(?ETS_TABLE,{implementation,Id}),
   Implementation.
 
 write_node(Node) ->
@@ -473,10 +456,10 @@ start(Implementations,[Recipe,DistPlan]) ->
        [Recipe,Implementations,DistPlan],[]),
   ok.
 
-start_implementation(Id) ->
+start_implementation(Id,_Private) ->
   gen_server:call(?GEN_SERVER_NAME,{start_implementation,Id},infinity).
 
-stop_implementation(Id,Result) ->
+stop_implementation(Id,_Private,Result) ->
   gen_server:call(?GEN_SERVER_NAME,{stop_implementation,Id,Result},infinity).
   
 finish() ->
