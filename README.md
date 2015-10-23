@@ -1,13 +1,13 @@
 
 
-# Welcome to the Ranker library. #
+# Welcome to the Ranker tool. #
 
 __Authors:__ [`Lars-Ake Fredlund (lfredlund@fi.upm.es), Clara Benac Earle (cbenac@fi.upm.es)`](mailto:Lars-Ake Fredlund (lfredlund@fi.upm.es), Clara Benac Earle (cbenac@fi.upm.es)).
 
-Ranker is a library that helps compare, using testing, how well different
+Ranker is a tool that helps compare, using testing, how well different
 implementations of the same specification behave, obtaining 
 a "ranking" of the implementations (which are better, which are worse).
-The library uses the Quviq QuickCheck tool for testing.
+The tool uses the Quviq QuickCheck tool for testing.
 
 
 ## Build, Test, and Generate Markdown Docs ##
