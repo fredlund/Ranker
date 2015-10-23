@@ -4,6 +4,7 @@
 
 -include_lib("eqc/include/eqc.hrl").
 -include("implementation.hrl").
+-include("result.hrl").
 
 %%-define(debug,true).
 
@@ -15,7 +16,10 @@
 -define(DEBUGVAL(),false).
 -endif.
 
--spec classify(atom(),atom(),any(),[{any(),any()}],[any()]) -> [any()].
+-type option() :: {timeout,integer()}.
+
+-spec classify(atom(),atom(),any(),[{string(),any()}],[option()]) -> 
+		  [#result{}].
 classify(RankerModule,RecipeModule,Recipe,PreImplementations,PreOptions) ->
   Options = PreOptions++[{timeout,5000}],
   {ImplementationIds,_} =

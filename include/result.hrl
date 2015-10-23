@@ -1,0 +1,1 @@
+-record(result,{testcase,failures,successes}).

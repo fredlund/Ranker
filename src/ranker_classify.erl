@@ -1,13 +1,16 @@
+%% Orginal version by John Hughes et.al.
+%% Modified by Lars-Ake Fredlund.
+%% 
+
 -module(ranker_classify).
 -include_lib("eqc/include/eqc.hrl").
 
 -export([classify/5,graph/5]).
 
--record(result,{testcase,failures,successes}).
-
 -define(ETS_TABLE,ranker_classify_ets).
 
 %%-define(debug,true).
+-include("result.hrl").
 
 -ifdef(debug).
 -define(LOG(X,Y), io:format("{~p,~p}: ~s~n", [?MODULE,?LINE,io_lib:format(X,Y)])).
@@ -17,7 +20,11 @@
 -define(DEBUGVAL(),false).
 -endif.
 
--spec classify(string(),integer(),[any()],any(),fun((any()) -> boolean())) -> [#result{}].
+-spec classify(string(),
+	       integer(),
+	       [{string(),any()}],
+	       any(),
+	       fun((any()) -> boolean())) -> [#result{}].
 classify(Name,N,Implementations,Gen,Test) -> 
   ranker_create_ets_table:ensure_open(?ETS_TABLE),
   ?LOG("Implementations are~n~p~n",[Implementations]),
