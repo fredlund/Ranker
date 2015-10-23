@@ -97,7 +97,7 @@ As a result of the ranking analysis there will be a set of files corr_classes_X.
 
 
 The directory extras contains a small interactive application,
-based on the [gnuplot tool](http://www.gnuplot.info/)
+based on the [gnuplot tool](http://www.gnuplot.info/),
 to interact with complexity graphs computed by the
 [Complexity tool](https://github.com/nick8325/complexity.git).
 Consult the README file in the extras directory for further information.
