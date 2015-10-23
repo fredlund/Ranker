@@ -1,0 +1,3 @@
+-record(user,{name,complexity=[],coords,filename}).
+-record(window,{name,users=[],port=void,state=inert,options,grade=void}).
+-record(egstate, {windows=[],clipboard=[]}).

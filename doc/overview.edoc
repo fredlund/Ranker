@@ -88,6 +88,15 @@ examples/erlang erl -pa ../../_build/default/lib/ranker/ebin/ -pa ebin
 As a result of the ranking analysis there will be a set of files corr_classes_X.{bin,dot,interpretation,pdf} which describe the computed ranking (step-by-step).
 </p>
 
+<h2>Extras</h2>
+<p>
+The directory extras contains a small interactive application,
+based on the <a href="http://www.gnuplot.info/">gnuplot tool</a>
+to interact with complexity graphs computed by the
+<a href="https://github.com/nick8325/complexity.git">Complexity tool</a>.
+Consult the README file in the extras directory for further information.
+</p>
+
 @end
 
 

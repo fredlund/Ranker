@@ -1,0 +1,43 @@
+This directory contains a small appliction to interact with
+(complexity) graphs, resulting from using the Complexity tool
+(https://github.com/nick8325/complexity.git) to infer the best and
+worst case complexity of implementations of some algorithm. The
+application uses the gnuplot tool (http://www.gnuplot.info/) to plot
+the graphs.
+
+The directory example contains example output files from such a run.
+Compile and start the tool using:
+
+extras$ erlc *.erl
+extras$ cd example
+extras/example$ erl -pa ../
+
+> egplot:test().
+
+Now, it is possible to select some graphs. First left click the mouse
+on a point above all graphs, then left click the mouse on a poing between
+some graphs, so that some curves traverse
+the imaginary area defined by the rectangle between the clicks,
+and some curves do not. The result is that the tool will select
+the curves that enter the defined area. 
+
+A typical output is the following (in the Erlang shell):
+
+User "imp0" was selected in window "data"
+User "imp2" was selected in window "data"
+
+Now we can move the curves from one window to another using the Erlang
+command:
+
+> egplot:move("bad1").
+
+"bad1" is a predefined window for the test function. It is possible
+to create new windows (or rather curve containers) using the command
+
+> egplot:new_window(Name).
+
+where Name is an Erlang string.
+
+The key 'o' can be used to toggle between displaying the computed
+complexity of the implementation or not.
+
