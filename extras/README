@@ -14,7 +14,7 @@ extras/example$ erl -pa ../
 
 > egplot:test().
 
-Now, it is possible to select some graphs. First left click the mouse
+Now it is possible to select some graphs. First left click the mouse
 on a point above all graphs, then left click the mouse on a poing between
 some graphs, so that some curves traverse
 the imaginary area defined by the rectangle between the clicks,
