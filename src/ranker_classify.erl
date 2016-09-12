@@ -187,7 +187,7 @@ shrink_measure_higher(PreOldMeasure,Result,{false,CovMeasure}) ->
     length(Result#result.failures),
   NumSuccesses =
     length(Result#result.successes),
-  _SizeOfNewPairs = 
+  _ = %%SizeOfNewPairs = 
     NumFailures*NumSuccesses,
   NewMeasure =
     %%SizeOfNewPairs
@@ -406,7 +406,7 @@ calculate_all_paths(States,Edges) ->
       (fun (State) -> 
 	   not(lists:any(fun ({_,Q,_}) -> Q==State end, Edges))
        end,States),
-  _NonStarters = 
+  _ = %%_NonStarters = 
     States--Starters,
   ?LOG("Starters are~n~p~nNonstarters:~n~p~n",[Starters,_NonStarters]),
   StarterPaths =
