@@ -305,7 +305,7 @@ create_implementation(ImplementationId,
 	     ?LOG
 		("acquiring class ~p (ctclass=~p) at node_id ~p~n",
 		 [Class,CtClass,java:node_id(Class)]),
-	     java:acquire_class(java:node_id(Class),Class),
+	     java:acquire_class(java:node_id(Class),Class,list_to_atom(ClassName)),
 	     list_to_atom(NewClassName)
 	 end, Classes),
       gen_server:cast
