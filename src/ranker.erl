@@ -6,7 +6,7 @@
 -include("implementation.hrl").
 -include("result.hrl").
 
-%%-define(debug,true).
+-define(debug,true).
 
 -ifdef(debug).
 -define(LOG(X,Y), io:format("{~p,~p}: ~s~n", [?MODULE,?LINE,io_lib:format(X,Y)])).
@@ -61,7 +61,7 @@ run_for_each(RankerModule,RecipeModule,Data,Implementations,Options) ->
 	   Implementation#implementation{pid=Pid,status=computing}
        end, Implementations),
   {Fails,Timeouts} =
-    collect_fails(NewImplementations,length(NewImplementations),Options),
+    collect_fails(NewImplementations,length(NewImplementations),RecipeModule,Options),
   if
     Fails=/=[] ->
       ?LOG
@@ -104,15 +104,13 @@ check(RankerModule,RecipeModule,Data,Implementation,_Options,Parent) ->
     true ->
       ok
   end,
-  RecipeModule:stop_implementation
-    (Id,Implementation#implementation.private,Result),
   Parent!{implementation,Id,Result}.
 
-collect_fails(Implementations,N,Options) ->
-  collect_fails(Implementations,[],[],N,Options).
-collect_fails(_Implementations,Fails,Timeouts,0,_Options) ->
+collect_fails(Implementations,N,RecipeModule,Options) ->
+  collect_fails(Implementations,[],[],N,RecipeModule,Options).
+collect_fails(_Implementations,Fails,Timeouts,0,_RecipeModule,_Options) ->
   {Fails,Timeouts};
-collect_fails(Implementations,Fails,Timeouts,N,Options) when N>0 ->
+collect_fails(Implementations,Fails,Timeouts,N,RecipeModule,Options) when N>0 ->
   Timeout =
     case proplists:get_value(timeout,Options) of
       TimeoutValue when is_integer(TimeoutValue), TimeoutValue>0 ->
@@ -124,19 +122,21 @@ collect_fails(Implementations,Fails,Timeouts,N,Options) when N>0 ->
     {implementation,Id,Result} ->
       Implementation =
 	lists:keyfind(Id,#implementation.id,Implementations),
+      RecipeModule:stop_implementation
+	(Id,Implementation#implementation.private,Result),
       NewImplementations =
 	lists:keyreplace(Id,#implementation.id,Implementations,
 			 Implementation#implementation{status=finished}),
       case Result of
 	true ->
 	  collect_fails
-	    (NewImplementations,Fails,Timeouts,N-1,Options);
+	    (NewImplementations,Fails,Timeouts,N-1,RecipeModule,Options);
 	false ->
 	  collect_fails
-	    (NewImplementations,[Implementation|Fails],Timeouts,N-1,Options);
+	    (NewImplementations,[Implementation|Fails],Timeouts,N-1,RecipeModule,Options);
 	timeout ->
 	  collect_fails
-	    (NewImplementations,Fails,[Implementation|Timeouts],N-1,Options)
+	    (NewImplementations,Fails,[Implementation|Timeouts],N-1,RecipeModule,Options)
       end;
 
     {'EXIT',Pid,Reason} ->
@@ -144,17 +144,33 @@ collect_fails(Implementations,Fails,Timeouts,N,Options) when N>0 ->
 	Reason=/=normal ->
 	  io:format
 	    ("~n*** Warning: pid ~p exited due to ~p~n",
-	     [Pid,Reason]);
+	     [Pid,Reason]),
+	  case lists:keyfind(Pid,#implementation.pid,Implementations) of
+	    false -> 
+	      io:format("could not find pid ~p in implementations~n",[Pid]),
+	      collect_fails(Implementations,Fails,Timeouts,N,RecipeModule,Options);
+	    Implementation ->
+	      io:format
+		("~n*** handling implementation timeout:~n~p~n",
+		 [Implementation]),
+	      Id = Implementation#implementation.id,
+	      RecipeModule:stop_implementation
+		(Id,Implementation#implementation.private,timeout),
+	      NewImplementations =
+		lists:keyreplace(Id,#implementation.id,Implementations,
+				 Implementation#implementation{status=finished}),
+	      collect_fails
+		(NewImplementations,Fails,[Implementation|Timeouts],N-1,RecipeModule,Options)
+	  end;
 	true ->
-	  ok
-      end,
-      collect_fails(Implementations,Fails,Timeouts,N,Options);
+	  collect_fails(Implementations,Fails,Timeouts,N,RecipeModule,Options)
+      end;
 
     Msg ->
       io:format
 	("~n*** Warning: unknown message ~p received~n",
 	 [Msg]),
-      collect_fails(Implementations,Fails,Timeouts,N,Options)
+      collect_fails(Implementations,Fails,Timeouts,N,RecipeModule,Options)
 
   after Timeout ->
       Remaining =
@@ -162,9 +178,19 @@ collect_fails(Implementations,Fails,Timeouts,N,Options) when N>0 ->
 	  (fun (Imp) -> Imp#implementation.status == computing end,
 	   Implementations),
       io:format
-	("~n*** Warning: timeout: remaining implementations: ~p~n",
+	("~n*** Warning: timeout in collect_fails: remaining implementations: ~p~n",
 	 [lists:map(fun (Imp) -> Imp#implementation.id end, Remaining)]),
-      terminate_timeouts(Remaining,Fails,Timeouts,Options)
+      lists:foreach
+	(fun (Imp) ->
+	     RecipeModule:stop_implementation
+	       (Imp#implementation.id,
+		Imp#implementation.private,
+		timeout)
+	 end, Remaining),
+      timer:sleep(100),
+      Result = terminate_timeouts(Remaining,Fails,Timeouts,Options),
+      timer:sleep(1000),
+      Result
   end.
 
 terminate_timeouts([],Fails,Timeouts,_Options) ->

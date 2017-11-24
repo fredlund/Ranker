@@ -17,7 +17,7 @@
 -include("java_reuse_recipe.hrl").
 -include("java_reuse_implementation.hrl").
 
-%%-define(debug,true).
+-define(debug,true).
 
 -ifdef(debug).
 -define(LOG(X,Y), io:format("{~p,~p}: ~s~n", [?MODULE,?LINE,io_lib:format(X,Y)])).
@@ -71,9 +71,9 @@ handle_call(_Msg={stop_implementation,ImplementationId,Result},From,State) ->
   case not(lists:member(ImplementationId,Actives)) of
     true ->
       io:format
-	("Fatal error: implementation ~p is not active at ~p:~p on stop_implementation???~n",
-	 [ImplementationId,NodeId,Node]),
-      throw(bad);
+	("*** WARNING: implementation ~p:~n~p~nis not active at~n~p:~p on stop_implementation???~n",
+	 [ImplementationId,PreImplementation,NodeId,Node]),
+      ok;
     false ->
       ok
   end,
@@ -126,7 +126,7 @@ handle_cast(_Msg={implementation_started,{ImplementationId,Reply,NodeId,JavaNode
   {_Pid,_Ref} = Reply,
   ?LOG
     ("~p: replying to ~p is_alive? ~p~n",
-     [ImplementationId,Pid,is_process_alive(_Pid)]),
+     [ImplementationId,_Pid,is_process_alive(_Pid)]),
   gen_server:reply(Reply,{JavaNodeId,Classes}),
   write_node(NewNode),
   do_something(NewNode,State),
