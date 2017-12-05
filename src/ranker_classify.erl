@@ -9,7 +9,7 @@
 
 -define(ETS_TABLE,ranker_classify_ets).
 
--define(debug,true).
+%%-define(debug,true).
 -include("result.hrl").
 
 -ifdef(debug).
@@ -406,7 +406,7 @@ calculate_all_paths(States,Edges) ->
       (fun (State) -> 
 	   not(lists:any(fun ({_,Q,_}) -> Q==State end, Edges))
        end,States),
-  _NonStarters = States--Starters,
+  %%_NonStarters = States--Starters,
   ?LOG("Starters are~n~p~nNonstarters:~n~p~n",[Starters,_NonStarters]),
   StarterPaths =
     lists:map

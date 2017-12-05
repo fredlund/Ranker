@@ -6,7 +6,7 @@
 -include("implementation.hrl").
 -include("result.hrl").
 
--define(debug,true).
+%%-define(debug,true).
 
 -ifdef(debug).
 -define(LOG(X,Y), io:format("{~p,~p}: ~s~n", [?MODULE,?LINE,io_lib:format(X,Y)])).
@@ -74,7 +74,8 @@ run_for_each(RankerModule,RecipeModule,Data,Implementations,Options) ->
     Timeouts=/=[] ->
       ?LOG
 	("Timeouts: ~p~n",
-	 [lists:usort(Timeouts)]);
+	 [lists:usort(Timeouts)]),
+      timer:sleep(100);
      true ->
       ok
   end,
@@ -147,7 +148,6 @@ collect_fails(Implementations,Fails,Timeouts,N,RecipeModule,Options) when N>0 ->
 	     [Pid,Reason]),
 	  case lists:keyfind(Pid,#implementation.pid,Implementations) of
 	    false -> 
-	      io:format("could not find pid ~p in implementations~n",[Pid]),
 	      collect_fails(Implementations,Fails,Timeouts,N,RecipeModule,Options);
 	    Implementation ->
 	      io:format
@@ -187,16 +187,14 @@ collect_fails(Implementations,Fails,Timeouts,N,RecipeModule,Options) when N>0 ->
 		Imp#implementation.private,
 		timeout)
 	 end, Remaining),
-      timer:sleep(100),
       Result = terminate_timeouts(Remaining,Fails,Timeouts,Options),
-      timer:sleep(1000),
       Result
   end.
 
 terminate_timeouts([],Fails,Timeouts,_Options) ->
   {Fails,Timeouts};
 terminate_timeouts([Implementation|Rest],Fails,Timeouts,Options) ->
-  ?LOG("will kill ~p~n",[Implementation#implementation.pid]),
+  ?LOG("will kill ~p:~p~n",[Implementation#implementation.id,Implementation#implementation.pid]),
   erlang:exit(Implementation#implementation.pid,kill),
   terminate_timeouts(Rest,Fails,[Implementation|Timeouts],Options).
 

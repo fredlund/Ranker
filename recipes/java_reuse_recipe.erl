@@ -17,7 +17,7 @@
 -include("java_reuse_recipe.hrl").
 -include("java_reuse_implementation.hrl").
 
--define(debug,true).
+%%-define(debug,true).
 
 -ifdef(debug).
 -define(LOG(X,Y), io:format("{~p,~p}: ~s~n", [?MODULE,?LINE,io_lib:format(X,Y)])).
@@ -49,7 +49,7 @@ handle_call(_Msg={start_implementation,ImplementationId},From,State) ->
   case lists:member(ImplementationId,Node#node.active_implementations) of
     true ->
       io:format
-	("Fatal error: implementation ~p is active at ~p:~p on start_implementation???~n",
+	("Fatal error: implementation ~p is active at~n~p:~p on start_implementation???~n",
 	 [ImplementationId,NodeId,Node]),
       throw(bad);
     false ->
@@ -70,7 +70,7 @@ handle_call(_Msg={stop_implementation,ImplementationId,Result},From,State) ->
   Actives = Node#node.active_implementations,
   case not(lists:member(ImplementationId,Actives)) of
     true ->
-      io:format
+      ?LOG
 	("*** WARNING: implementation ~p:~n~p~nis not active at~n~p:~p on stop_implementation???~n",
 	 [ImplementationId,PreImplementation,NodeId,Node]),
       ok;
@@ -78,14 +78,18 @@ handle_call(_Msg={stop_implementation,ImplementationId,Result},From,State) ->
       ok
   end,
   Timeout = (Node#node.timeout) orelse (Result==timeout),
-  %%io:format("~p: got ~p timeout is ~p~n",[NodeId,Result,Timeout]),
   if
-    Result==timeout ->
-      io:format("~p: got timeout for implementation ~p~n",[NodeId,ImplementationId]);
+    Timeout ->
+      ?LOG
+	 ("~p: stop_implementation: setting timeout for ~p due to ~p/~p~n",
+	  [NodeId,Implementation#java_reuse_implementation.id,Node#node.timeout,Result]);
     true ->
       ok
   end,
-  NewNode = Node#node{active_implementations=Actives--[ImplementationId],timeout=Timeout},
+  NewNode = 
+    Node#node{active_implementations=Actives--[ImplementationId],
+	      pending_starts=lists:keydelete(ImplementationId,1,Node#node.pending_starts),
+	      timeout=Timeout},
   write_node(NewNode),
   gen_server:reply(From,ok),
   do_something(NewNode,State),
@@ -133,7 +137,6 @@ handle_cast(_Msg={implementation_started,{ImplementationId,Reply,NodeId,JavaNode
   {noreply, State, ?TIMEOUT}.
 
 handle_info(timeout,State) ->
-  io:format("~nTimeout~n"),
   lists:foreach
     (fun (PreNode) ->
 	 Node = read_node(PreNode#node.node_id),
@@ -168,6 +171,7 @@ terminate(ordered,_State) ->
   ok.
 
 do_something(Node,#state{recipe=Recipe} = State) ->
+  ?LOG("do_something(node ~p)~n",[Node]),
   #node{active_implementations=Actives, pending_starts=Pending, is_busy=IsBusy,
 	timeout=Timeout, reuses_left=ReusesLeft, is_alive=IsAlive} = Node,
   if
@@ -184,6 +188,7 @@ do_something(Node,#state{recipe=Recipe} = State) ->
       start_node(Node,State);
     
     Actives==[], Timeout, Pending=/=[] ->
+      ?LOG("do_something(with ~p) due to timeout and ~p~n",[Node,Pending]),
       start_node(Node,State);
     
     ReusesLeft>0, Pending=/=[] ->
@@ -246,7 +251,7 @@ start_node(Node = #node{node_id=NodeId,pending_starts=Pending,implementations=Im
 
 node_start_implementation(#node{pending_starts=[{ImplementationId,Reply}|Pendings]} = Node,State) ->
   ?LOG
-    ("start_implementation(~p) at node ~p~n",
+    ("node_start_implementation(~p) at node ~p~n",
      [ImplementationId,Node#node.node_id]),
   ServerId = self(),
   write_node
@@ -263,6 +268,7 @@ create_implementation(ImplementationId,
 		  java_node_id=JavaNodeId} = Node,
 	    State,
 	    ServerId) ->
+  ?LOG("create_implementation(~p) at node ~p~n",[ImplementationId,Node]),
   Implementation
     = #java_reuse_implementation{classpool=ClassPool,path=Path}
     = read_implementation(ImplementationId),
