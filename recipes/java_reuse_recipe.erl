@@ -305,6 +305,15 @@ create_implementation(ImplementationId,
 		  getAndRename,
 		  [java:list_to_string(JavaNodeId,ClassName),
 		   java:list_to_string(JavaNodeId,NewClassName)]),
+             case java:is_object_ref(CtClass) of
+               false ->
+                 io:format
+                   ("~n*** Error: could not rename class named ~p to ~p for implementation ~p~n",
+                    [ClassName,NewClassName,ImplementationId]),
+                 error(bad);
+               true ->
+                 ok
+             end,
 	     Class = java:call(CtClass,toClass,[]),
 	     %% The next line registers the new class under the right
 	     %% name for the JavaErlang library
